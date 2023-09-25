@@ -120,10 +120,15 @@ class Task(var name: String, durationStr: String) {
     private var originalDuration: Long = stringMinutesToLongMillis(durationStr)
     private var remainingDuration: Long by mutableStateOf(originalDuration)
     private var taskTimerTickTime: Long = 0
+    private var id: Long = System.currentTimeMillis()
     var taskTimerRunning: Boolean  by mutableStateOf(false)
 
     fun resetElapsedMillis() {
         this.remainingDuration = originalDuration
+    }
+
+    fun getId(): Long {
+        return id
     }
 
     fun setRemainingDurationForTesting(remainingDuration: Long): Task {

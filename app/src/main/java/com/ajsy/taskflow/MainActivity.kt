@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -75,6 +76,7 @@ fun TaskFlowView(modifier: Modifier = Modifier) {
 
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TaskRows(modifier: Modifier = Modifier) {
     val viewModel = viewModel<TaskFlowViewModel>()
@@ -83,12 +85,12 @@ fun TaskRows(modifier: Modifier = Modifier) {
         var isFirstRow = true
         for(task in viewModel.tasks) {
             if(isFirstRow) {
-                item {
-                    FirstTaskRow(task)
+                item(key = task.getId()) {
+                    FirstTaskRow(task, modifier = Modifier.animateItemPlacement())
                 }
             } else {
-                item {
-                    TaskRow(task)
+                item(key = task.getId()) {
+                    TaskRow(task, modifier = Modifier.animateItemPlacement())
                 }
             }
             isFirstRow = false
@@ -129,20 +131,40 @@ fun FirstTaskRow(task :Task, modifier: Modifier = Modifier) {
     else if(task.percentageComplete() >= 1)
         color = Color.Red
 
-    Row(
-        modifier = Modifier.fillMaxWidth().drawBehind {
-            drawRect(
-                color = color,
-                size = Size(drawContext.size.width*(task.percentageComplete()), drawContext.size.height)
-            )
-        },
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(task.name, fontSize = 30.sp)
-        Text(task.formatTimeRemaining(), fontSize = 30.sp)
-    }
+    Column(modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().drawBehind {
+                drawRect(
+                    color = color,
+                    size = Size(
+                        drawContext.size.width * (task.percentageComplete()),
+                        drawContext.size.height
+                    )
+                )
+            },
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(task.name, fontSize = 30.sp)
+            Text(task.formatTimeRemaining(), fontSize = 30.sp)
+        }
 
-    TaskControls(task)
+        TaskControls(task)
+    }
+}
+
+@Composable
+fun TaskRow(task :Task, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(task.name)
+            Text(task.formatTimeRemaining())
+        }
+
+        TaskControls(task)
+    }
 }
 
 @Composable
@@ -180,19 +202,6 @@ fun TaskControls(task :Task, modifier: Modifier = Modifier) {
             )
         }
     }
-}
-
-@Composable
-fun TaskRow(task :Task, modifier: Modifier = Modifier) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-            Text(task.name)
-            Text(task.formatTimeRemaining())
-    }
-
-    TaskControls(task)
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
