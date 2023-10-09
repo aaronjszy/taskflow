@@ -8,12 +8,15 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,18 +28,29 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -75,28 +89,62 @@ fun TaskFlowView(modifier: Modifier = Modifier) {
     }
 
 }
+//
+//@OptIn(ExperimentalFoundationApi::class)
+//@Composable
+//fun SwipableElement(modifier: Modifier = Modifier, onDragDown: () -> Unit, onDragUp: () -> Unit): Modifier {
+//    val offsetY = remember { mutableStateOf(0f) }
+//
+//    return modifier.pointerInput(Unit) {
+//        detectVerticalDragGestures { _, dragAmount ->
+//            offsetY.value += dragAmount
+//            if (offsetY.value > 300f) { // Adjust this threshold as needed
+//                println("event!!")
+//                onDragDown.invoke()
+//                offsetY.value = 0f // Reset the offset
+//            }
+//        }
+//    }
+//}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TaskRows(modifier: Modifier = Modifier) {
     val viewModel = viewModel<TaskFlowViewModel>()
 
+
     LazyColumn() {
         var isFirstRow = true
         for(task in viewModel.tasks) {
             if(isFirstRow) {
                 item(key = task.getId()) {
-                    FirstTaskRow(task, modifier = Modifier.animateItemPlacement())
+                    FirstTaskRow(task, modifier = Modifier
+                        .animateItemPlacement()
+                    )
                 }
             } else {
                 item(key = task.getId()) {
-                    TaskRow(task, modifier = Modifier.animateItemPlacement())
+                    TaskRow(task, modifier = Modifier
+                        .animateItemPlacement()
+                    )
                 }
             }
             isFirstRow = false
         }
     }
 }
+//
+//suspend fun PointerInputScope.detectVerticalDragGestures(
+//    onDragStart: (Offset) -> Unit = { },
+//    onDragEnd: () -> Unit = { },
+//    onDragCancel: () -> Unit = { },
+//    onVerticalDrag: (change: PointerInputChange, dragAmount: Float) -> Unit
+//): Unit
+
+fun Float.toDp(density: Density): Dp {
+    return Dp(this * density.density)
+}
+
 
 @Composable
 fun KeepScreenOn() {
@@ -144,7 +192,7 @@ fun FirstTaskRow(task :Task, modifier: Modifier = Modifier) {
             },
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(task.name, fontSize = 30.sp)
+            Text(task.name, fontSize = 30.sp,  modifier = Modifier.weight(1f))
             Text(task.formatTimeRemaining(), fontSize = 30.sp)
         }
 
@@ -159,7 +207,7 @@ fun TaskRow(task :Task, modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(task.name)
+            Text(task.name, modifier=Modifier.weight(1f))
             Text(task.formatTimeRemaining())
         }
 
@@ -170,20 +218,28 @@ fun TaskRow(task :Task, modifier: Modifier = Modifier) {
 @Composable
 fun TaskControls(task :Task, modifier: Modifier = Modifier) {
     val viewModel = viewModel<TaskFlowViewModel>()
+    val offsetY = remember { mutableStateOf(0f) }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Button(onClick = {
-            viewModel.moveTaskUp(task)
+        Column(modifier = Modifier.pointerInput(Unit) {
+            detectVerticalDragGestures { _, dragAmount ->
+                offsetY.value += dragAmount
+                if (offsetY.value > 300f) {
+                    viewModel.moveTaskDown(task)
+                    offsetY.value = 0f
+                }
+                if (offsetY.value < -300f) {
+                    viewModel.moveTaskUp(task)
+                    offsetY.value = 0f
+                }
+            }
         }) {
-            Text("⬆️")
-        }
-        Button(onClick = {
-            viewModel.moveTaskDown(task)
-        }) {
-            Text("⬇️")
+            Button(onClick = {}) {
+                Text("\uD83D\uDD03")
+            }
         }
         Button(onClick = {
             viewModel.deleteTask(task)
@@ -254,8 +310,8 @@ fun NewTaskRow(modifier: Modifier = Modifier) {
 @Composable
 fun TaskFlowViewPreview() {
     val viewModel = viewModel<TaskFlowViewModel>()
-    viewModel.tasks.add(Task("asdf", "2").setRemainingDurationForTesting(1000*60*1))
-    viewModel.tasks.add(Task("asdfasdf", "3"))
+    viewModel.tasks.add(Task("test test test test test test test test test test test test test", "2").setRemainingDurationForTesting(1000*60*1))
+    viewModel.tasks.add(Task("test test test test test test test test test test test test test", "3"))
     TaskflowTheme {
         TaskFlowView()
     }
