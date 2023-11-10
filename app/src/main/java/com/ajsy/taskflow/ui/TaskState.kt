@@ -73,7 +73,7 @@ class TaskState(var name: String, var durationStr: String) {
             override fun run() {
                 thisTask.checkpointTickTime()
             }
-        }, 0L, 1000L)
+        }, 0L, 500L)
     }
 
     fun stop() {

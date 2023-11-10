@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -54,6 +55,7 @@ import com.ajsy.taskflow.db.TaskDatabase
 import com.ajsy.taskflow.ui.TaskFlowViewModel
 import com.ajsy.taskflow.ui.TaskState
 import com.ajsy.taskflow.ui.theme.TaskflowTheme
+import kotlin.math.log
 
 // TODO use room for persistence
 //   https://www.youtube.com/watch?v=bOd3wO0uFr8
@@ -109,22 +111,11 @@ fun TaskFlowView(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
 @Composable
 fun TaskRows(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
     LazyColumn() {
-        var isFirstRow = true
-        for(task in model.tasks) {
-            if(isFirstRow) {
-                item(key = task.getTaskId()) {
-                    FirstTaskRow(model, task, modifier = Modifier
-                        .animateItemPlacement()
-                    )
-                }
-            } else {
-                item(key = task.getTaskId()) {
-                    TaskRow(model, task, modifier = Modifier
-                        .animateItemPlacement()
-                    )
-                }
+        for(taskIndex in model.tasks.indices) {
+            val task = model.tasks[taskIndex]
+            item(key = task.getTaskId()) {
+                TaskRow(model, task, taskIndex == 0, modifier = Modifier.animateItemPlacement())
             }
-            isFirstRow = false
         }
     }
 }
@@ -151,7 +142,7 @@ fun Context.findActivity(): Activity? {
 }
 
 @Composable
-fun FirstTaskRow(model: TaskFlowViewModel, task : TaskState, modifier: Modifier = Modifier) {
+fun TaskRow(model: TaskFlowViewModel, task : TaskState, isFirstRow : Boolean, modifier: Modifier = Modifier) {
     if(task.taskTimerRunning) {
         KeepScreenOn()
     }
@@ -161,6 +152,11 @@ fun FirstTaskRow(model: TaskFlowViewModel, task : TaskState, modifier: Modifier 
         color = Color.Yellow
     else if(task.percentageComplete() >= 1)
         color = Color.Red
+
+    var fontSize = 12.sp
+    if(isFirstRow) {
+        fontSize = 32.sp
+    }
 
     Column(modifier) {
         Row(
@@ -175,23 +171,8 @@ fun FirstTaskRow(model: TaskFlowViewModel, task : TaskState, modifier: Modifier 
             },
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(task.name, fontSize = 30.sp,  modifier = Modifier.weight(1f))
-            Text(task.formatTimeRemaining(), fontSize = 30.sp)
-        }
-
-        TaskControls(model, task)
-    }
-}
-
-@Composable
-fun TaskRow(model: TaskFlowViewModel, task : TaskState, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(task.name, modifier=Modifier.weight(1f))
-            Text(task.formatTimeRemaining())
+            Text(task.name, fontSize = fontSize,  modifier = Modifier.weight(1f))
+            Text(task.formatTimeRemaining(), fontSize = fontSize)
         }
 
         TaskControls(model, task)
@@ -209,11 +190,11 @@ fun TaskControls(model: TaskFlowViewModel, task : TaskState, modifier: Modifier 
         Column(modifier = Modifier.pointerInput(Unit) {
             detectVerticalDragGestures { _, dragAmount ->
                 offsetY.value += dragAmount
-                if (offsetY.value > 300f) {
+                if (offsetY.value > 150f) {
                     model.moveTaskDown(task)
                     offsetY.value = 0f
                 }
-                if (offsetY.value < -300f) {
+                if (offsetY.value < -150f) {
                     model.moveTaskUp(task)
                     offsetY.value = 0f
                 }
