@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -14,9 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,24 +27,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerInputChange
-import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -53,20 +45,43 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ajsy.taskflow.ui.Task
+import androidx.room.Room
+import com.ajsy.taskflow.db.Task
+import com.ajsy.taskflow.db.TaskDatabase
 import com.ajsy.taskflow.ui.TaskFlowViewModel
+import com.ajsy.taskflow.ui.TaskState
 import com.ajsy.taskflow.ui.theme.TaskflowTheme
 
+// TODO use room for persistence
+//   https://www.youtube.com/watch?v=bOd3wO0uFr8
 class MainActivity : ComponentActivity() {
+    private val db by lazy {
+        Room.databaseBuilder(applicationContext,
+            TaskDatabase::class.java,
+            "tasks.db"
+        ).build()
+    }
+    private val viewModel by viewModels<TaskFlowViewModel>(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    return TaskFlowViewModel(db.dao) as T
+                }
+            }
+        }
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-//        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             TaskflowTheme {
                 // A surface container using the 'background' color from the theme
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    TaskFlowView()
+                    viewModel.initList()
+                    TaskFlowView(viewModel)
                 }
             }
         }
@@ -74,57 +89,37 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun TaskFlowView(modifier: Modifier = Modifier) {
+fun TaskFlowView(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(all = 10.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            TaskRows()
+            TaskRows(model)
         }
         Column{
-            NewTaskRow()
+            NewTaskRow(model)
         }
     }
 
 }
-//
-//@OptIn(ExperimentalFoundationApi::class)
-//@Composable
-//fun SwipableElement(modifier: Modifier = Modifier, onDragDown: () -> Unit, onDragUp: () -> Unit): Modifier {
-//    val offsetY = remember { mutableStateOf(0f) }
-//
-//    return modifier.pointerInput(Unit) {
-//        detectVerticalDragGestures { _, dragAmount ->
-//            offsetY.value += dragAmount
-//            if (offsetY.value > 300f) { // Adjust this threshold as needed
-//                println("event!!")
-//                onDragDown.invoke()
-//                offsetY.value = 0f // Reset the offset
-//            }
-//        }
-//    }
-//}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TaskRows(modifier: Modifier = Modifier) {
-    val viewModel = viewModel<TaskFlowViewModel>()
-
-
+fun TaskRows(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
     LazyColumn() {
         var isFirstRow = true
-        for(task in viewModel.tasks) {
+        for(task in model.tasks) {
             if(isFirstRow) {
-                item(key = task.getId()) {
-                    FirstTaskRow(task, modifier = Modifier
+                item(key = task.getTaskId()) {
+                    FirstTaskRow(model, task, modifier = Modifier
                         .animateItemPlacement()
                     )
                 }
             } else {
-                item(key = task.getId()) {
-                    TaskRow(task, modifier = Modifier
+                item(key = task.getTaskId()) {
+                    TaskRow(model, task, modifier = Modifier
                         .animateItemPlacement()
                     )
                 }
@@ -133,18 +128,10 @@ fun TaskRows(modifier: Modifier = Modifier) {
         }
     }
 }
-//
-//suspend fun PointerInputScope.detectVerticalDragGestures(
-//    onDragStart: (Offset) -> Unit = { },
-//    onDragEnd: () -> Unit = { },
-//    onDragCancel: () -> Unit = { },
-//    onVerticalDrag: (change: PointerInputChange, dragAmount: Float) -> Unit
-//): Unit
 
 fun Float.toDp(density: Density): Dp {
     return Dp(this * density.density)
 }
-
 
 @Composable
 fun KeepScreenOn() {
@@ -168,7 +155,7 @@ fun Context.findActivity(): Activity? {
 }
 
 @Composable
-fun FirstTaskRow(task :Task, modifier: Modifier = Modifier) {
+fun FirstTaskRow(model: TaskFlowViewModel, task : TaskState, modifier: Modifier = Modifier) {
     if(task.taskTimerRunning) {
         KeepScreenOn()
     }
@@ -196,12 +183,12 @@ fun FirstTaskRow(task :Task, modifier: Modifier = Modifier) {
             Text(task.formatTimeRemaining(), fontSize = 30.sp)
         }
 
-        TaskControls(task)
+        TaskControls(model, task)
     }
 }
 
 @Composable
-fun TaskRow(task :Task, modifier: Modifier = Modifier) {
+fun TaskRow(model: TaskFlowViewModel, task : TaskState, modifier: Modifier = Modifier) {
     Column(modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -211,13 +198,12 @@ fun TaskRow(task :Task, modifier: Modifier = Modifier) {
             Text(task.formatTimeRemaining())
         }
 
-        TaskControls(task)
+        TaskControls(model, task)
     }
 }
 
 @Composable
-fun TaskControls(task :Task, modifier: Modifier = Modifier) {
-    val viewModel = viewModel<TaskFlowViewModel>()
+fun TaskControls(model: TaskFlowViewModel, task : TaskState, modifier: Modifier = Modifier) {
     val offsetY = remember { mutableStateOf(0f) }
 
     Row(
@@ -228,11 +214,11 @@ fun TaskControls(task :Task, modifier: Modifier = Modifier) {
             detectVerticalDragGestures { _, dragAmount ->
                 offsetY.value += dragAmount
                 if (offsetY.value > 300f) {
-                    viewModel.moveTaskDown(task)
+                    model.moveTaskDown(task)
                     offsetY.value = 0f
                 }
                 if (offsetY.value < -300f) {
-                    viewModel.moveTaskUp(task)
+                    model.moveTaskUp(task)
                     offsetY.value = 0f
                 }
             }
@@ -242,12 +228,12 @@ fun TaskControls(task :Task, modifier: Modifier = Modifier) {
             }
         }
         Button(onClick = {
-            viewModel.deleteTask(task)
+            model.deleteTask(task)
         }) {
             Text("❌")
         }
         Button(onClick = {
-            viewModel.toggleTimer(task)
+            model.toggleTimer(task)
         }) {
             Text(
                 if (task.taskTimerRunning) {
@@ -262,9 +248,7 @@ fun TaskControls(task :Task, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
-fun NewTaskRow(modifier: Modifier = Modifier) {
-    val viewModel = viewModel<TaskFlowViewModel>()
-
+fun NewTaskRow(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
     val (minutesFocusRequester) = FocusRequester.createRefs()
     val (nameFocusRequester) = FocusRequester.createRefs()
 
@@ -272,9 +256,9 @@ fun NewTaskRow(modifier: Modifier = Modifier) {
         modifier = Modifier.fillMaxWidth()
     ) {
         TextField(
-            value = viewModel.newItemName,
+            value = model.newItemName,
             singleLine = true,
-            onValueChange = { viewModel.updateNewItemName(it) },
+            onValueChange = { model.updateNewItemName(it) },
             label = { Text("task") },
             modifier = Modifier
                 .weight(0.75f)
@@ -285,9 +269,9 @@ fun NewTaskRow(modifier: Modifier = Modifier) {
             ),
         )
         TextField(
-            value = viewModel.newItemTime,
+            value = model.newItemTime,
             singleLine = true,
-            onValueChange = { viewModel.updateNewItemTime(it) },
+            onValueChange = { model.updateNewItemTime(it) },
             label = { Text("minutes") },
             modifier = Modifier
                 .weight(0.25f)
@@ -298,7 +282,7 @@ fun NewTaskRow(modifier: Modifier = Modifier) {
             ),
             keyboardActions = KeyboardActions(
                 onDone = {
-                    viewModel.addItem()
+                    model.addItem()
                     nameFocusRequester.requestFocus()
                 }
             ),
@@ -309,10 +293,11 @@ fun NewTaskRow(modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 fun TaskFlowViewPreview() {
-    val viewModel = viewModel<TaskFlowViewModel>()
-    viewModel.tasks.add(Task("test test test test test test test test test test test test test", "2").setRemainingDurationForTesting(1000*60*1))
-    viewModel.tasks.add(Task("test test test test test test test test test test test test test", "3"))
-    TaskflowTheme {
-        TaskFlowView()
-    }
+//    //TODO this will break now since were not supplying the dao
+//    val viewModel = viewModel<TaskFlowViewModel>()
+//    viewModel.tasks.add(TaskState("test test test test test test test test test test test test test", "2").setRemainingDurationForTesting(1000*60*1))
+//    viewModel.tasks.add(TaskState("test test test test test test test test test test test test test", "3"))
+//    TaskflowTheme {
+//        TaskFlowView(viewModel)
+//    }
 }

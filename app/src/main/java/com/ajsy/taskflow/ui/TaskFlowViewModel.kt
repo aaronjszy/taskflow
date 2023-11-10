@@ -5,16 +5,22 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.ajsy.taskflow.db.TaskDao
+import kotlinx.coroutines.launch
 import java.util.Timer
 import java.util.TimerTask
 
-class TaskFlowViewModel : ViewModel() {
+class TaskFlowViewModel(
+    private var dao: TaskDao
+) : ViewModel() {
+
     var newItemName by mutableStateOf("")
         private set
     var newItemTime by mutableStateOf("")
         private set
 
-    var tasks = mutableStateListOf<Task>()
+    var tasks = mutableStateListOf<TaskState>()
         private set
 
     private var timer: Timer? = null
@@ -22,7 +28,16 @@ class TaskFlowViewModel : ViewModel() {
     var isTimerRunning by mutableStateOf(false)
         private set
 
-    fun toggleTimer(task :Task) {
+    fun initList() {
+        viewModelScope.launch {
+            var stateList = TaskState.dtoListToStateList(dao.getTasks())
+            for(state in stateList) {
+                tasks.add(state)
+            }
+        }
+    }
+
+    fun toggleTimer(task : TaskState) {
         if (isTimerRunning) {
             stopTimer(task)
         } else {
@@ -31,7 +46,7 @@ class TaskFlowViewModel : ViewModel() {
         isTimerRunning = !isTimerRunning
     }
 
-    private fun startTimerForTask(task :Task) {
+    private fun startTimerForTask(task : TaskState) {
         stopTimer(tasks[0])
 
         moveTaskToTop(task)
@@ -45,7 +60,7 @@ class TaskFlowViewModel : ViewModel() {
         }, 0L, 1000L)
     }
 
-    private fun stopTimer(task: Task) {
+    private fun stopTimer(task: TaskState) {
         timer?.cancel()
         timer = null
         task.stop()
@@ -60,12 +75,19 @@ class TaskFlowViewModel : ViewModel() {
     }
 
     fun addItem() {
-        tasks.add(Task(newItemName, newItemTime))
+        var taskState = TaskState(newItemName, newItemTime)
+        taskState.position = tasks.size
+        tasks.add(taskState)
+
         newItemTime = ""
         newItemName = ""
+
+        viewModelScope.launch {
+            dao.upsertTask(TaskState.stateToDto(taskState))
+        }
     }
 
-    fun moveTaskUp(task: Task) {
+    fun moveTaskUp(task: TaskState) {
         var currentIndex = tasks.indexOf(task)
         if(currentIndex == 0) {
             return
@@ -74,10 +96,12 @@ class TaskFlowViewModel : ViewModel() {
 
         tasks[currentIndex] = tasks[newIndex]
         tasks[newIndex] = task
+
+        tasks[currentIndex].position = currentIndex
+        tasks[newIndex].position = newIndex
     }
 
-    fun moveTaskDown(task: Task) {
-        println(task.name)
+    fun moveTaskDown(task: TaskState) {
         var currentIndex = tasks.indexOf(task)
         if(currentIndex == tasks.size - 1) {
             return
@@ -86,20 +110,24 @@ class TaskFlowViewModel : ViewModel() {
 
         tasks[currentIndex] = tasks[newIndex]
         tasks[newIndex] = task
+
+        syncTaskPositions()
     }
 
-    private fun moveTaskToTop(task: Task) {
-        var currentIndex = tasks.indexOf(task)
+    private fun moveTaskToTop(task: TaskState) {
+        val currentIndex = tasks.indexOf(task)
         if(currentIndex == 0) {
             return
         }
-        var newIndex = 0;
+        val newIndex = 0;
 
         tasks[currentIndex] = tasks[newIndex]
         tasks[newIndex] = task
+
+        syncTaskPositions()
     }
 
-    fun deleteTask(task: Task) {
+    fun deleteTask(task: TaskState) {
         var isRunningTask = false
 
         if(task == tasks[0] && isTimerRunning) {
@@ -113,69 +141,19 @@ class TaskFlowViewModel : ViewModel() {
         if(isRunningTask && tasks.size > 0) {
             startTimerForTask(tasks[0])
         }
-    }
-}
 
-class Task(var name: String, durationStr: String) {
-    private var originalDuration: Long = stringMinutesToLongMillis(durationStr)
-    private var remainingDuration: Long by mutableStateOf(originalDuration)
-    private var taskTimerTickTime: Long = 0
-    private var id: Long = System.currentTimeMillis()
-    var taskTimerRunning: Boolean  by mutableStateOf(false)
-
-    fun resetElapsedMillis() {
-        this.remainingDuration = originalDuration
-    }
-
-    fun getId(): Long {
-        return id
-    }
-
-    fun setRemainingDurationForTesting(remainingDuration: Long): Task {
-        this.remainingDuration = remainingDuration
-        return this
-    }
-
-
-    fun checkpointStartTime() {
-        this.taskTimerTickTime = System.currentTimeMillis()
-        this.taskTimerRunning = true
-    }
-
-    fun stop() {
-        this.taskTimerRunning = false
-    }
-
-    fun checkpointTickTime() {
-        this.remainingDuration = this.remainingDuration - (System.currentTimeMillis() - this.taskTimerTickTime)
-        this.taskTimerTickTime = System.currentTimeMillis()
-    }
-
-    private fun stringMinutesToLongMillis(durationStr :String): Long {
-        return try {
-            durationStr.toLong()*60*1000
-        } catch (e: NumberFormatException) {
-            0
+        viewModelScope.launch {
+            dao.deleteTask(TaskState.stateToDto(task))
+            syncTaskPositions()
         }
     }
 
-    fun percentageComplete(): Float {
-        var percentageComplete = 1f - (remainingDuration.toFloat() / originalDuration.toFloat())
-        if(percentageComplete > 1) {
-            percentageComplete = 1f
+    private fun syncTaskPositions() {
+        viewModelScope.launch {
+            for ((index, task) in tasks.withIndex()) {
+                task.position = index
+                dao.upsertTask(TaskState.stateToDto(task))
+            }
         }
-        return percentageComplete
-    }
-
-    fun formatTimeRemaining(): String {
-        val seconds = (this.remainingDuration / 1000).toInt()
-
-        val sign = if (seconds < 0) "-" else ""
-        val absSeconds = kotlin.math.abs(seconds)
-
-        val minutes = absSeconds / 60
-        val remainingSeconds = absSeconds % 60
-
-        return "$sign$minutes:${String.format("%02d", remainingSeconds)}"
     }
 }
