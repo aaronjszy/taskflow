@@ -129,10 +129,6 @@ fun TaskRows(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
     }
 }
 
-fun Float.toDp(density: Density): Dp {
-    return Dp(this * density.density)
-}
-
 @Composable
 fun KeepScreenOn() {
     val context = LocalContext.current

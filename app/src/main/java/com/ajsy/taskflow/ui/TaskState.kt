@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.room.PrimaryKey
 import com.ajsy.taskflow.db.Task
+import java.util.Timer
+import java.util.TimerTask
 
 class TaskState(var name: String, var durationStr: String) {
     var id: Long = System.currentTimeMillis()
@@ -13,6 +15,8 @@ class TaskState(var name: String, var durationStr: String) {
     var remainingDuration: Long by mutableStateOf(originalDuration)
     var taskTimerTickTime: Long = 0
     var taskTimerRunning: Boolean  by mutableStateOf(false)
+
+    private var timer: Timer? = null
 
     companion object {
         fun dtoToState(taskDto: Task): TaskState {
@@ -58,12 +62,24 @@ class TaskState(var name: String, var durationStr: String) {
     }
 
 
-    fun checkpointStartTime() {
+    fun start() {
         this.taskTimerTickTime = System.currentTimeMillis()
         this.taskTimerRunning = true
+
+        var thisTask = this
+
+        timer = Timer()
+        timer?.scheduleAtFixedRate(object : TimerTask() {
+            override fun run() {
+                thisTask.checkpointTickTime()
+            }
+        }, 0L, 1000L)
     }
 
     fun stop() {
+        timer?.cancel()
+        timer = null
+
         this.taskTimerRunning = false
     }
 

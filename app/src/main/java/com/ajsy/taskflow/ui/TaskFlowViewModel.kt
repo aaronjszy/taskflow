@@ -23,10 +23,7 @@ class TaskFlowViewModel(
     var tasks = mutableStateListOf<TaskState>()
         private set
 
-    private var timer: Timer? = null
-
-    var isTimerRunning by mutableStateOf(false)
-        private set
+//    private var timer: Timer? = null
 
     fun initList() {
         viewModelScope.launch {
@@ -38,31 +35,33 @@ class TaskFlowViewModel(
     }
 
     fun toggleTimer(task : TaskState) {
-        if (isTimerRunning) {
+        if (task.taskTimerRunning) {
             stopTimer(task)
         } else {
             startTimerForTask(task)
         }
-        isTimerRunning = !isTimerRunning
     }
 
     private fun startTimerForTask(task : TaskState) {
+        // Stop the timer for the task in the first row
+        // in case its already running since were going to
         stopTimer(tasks[0])
 
         moveTaskToTop(task)
-        task.checkpointStartTime()
 
-        timer = Timer()
-        timer?.scheduleAtFixedRate(object : TimerTask() {
-            override fun run() {
-                task.checkpointTickTime()
-            }
-        }, 0L, 1000L)
+        task.start()
+
+//        timer = Timer()
+//        timer?.scheduleAtFixedRate(object : TimerTask() {
+//            override fun run() {
+//                task.checkpointTickTime()
+//            }
+//        }, 0L, 1000L)
     }
 
     private fun stopTimer(task: TaskState) {
-        timer?.cancel()
-        timer = null
+//        timer?.cancel()
+//        timer = null
         task.stop()
     }
 
@@ -94,6 +93,13 @@ class TaskFlowViewModel(
         }
         var newIndex = currentIndex-1;
 
+        // If were moving the task to the top row,
+        // the task currently there might have a
+        // timer running, we need to stop it
+        if(newIndex == 0) {
+            stopTimer(tasks[newIndex])
+        }
+
         tasks[currentIndex] = tasks[newIndex]
         tasks[newIndex] = task
 
@@ -111,8 +117,14 @@ class TaskFlowViewModel(
         tasks[currentIndex] = tasks[newIndex]
         tasks[newIndex] = task
 
+        // If a timer for this task was running, it
+        // should now be stopped since its likely
+        // no longer at the top of the list
+        stopTimer(task)
+
         syncTaskPositions()
     }
+
 
     private fun moveTaskToTop(task: TaskState) {
         val currentIndex = tasks.indexOf(task)
@@ -128,17 +140,17 @@ class TaskFlowViewModel(
     }
 
     fun deleteTask(task: TaskState) {
-        var isRunningTask = false
-
-        if(task == tasks[0] && isTimerRunning) {
+        // Stop timer if the task is at the top
+        var wasTimerRunning = false
+        if(task == tasks[0]) {
+            wasTimerRunning = task.taskTimerRunning
             stopTimer(task)
-            isRunningTask = true
         }
 
         tasks.remove(task)
 
         // Start the timer for the next task
-        if(isRunningTask && tasks.size > 0) {
+        if(wasTimerRunning && tasks.size > 0) {
             startTimerForTask(tasks[0])
         }
 
@@ -150,9 +162,12 @@ class TaskFlowViewModel(
 
     private fun syncTaskPositions() {
         viewModelScope.launch {
-            for ((index, task) in tasks.withIndex()) {
-                task.position = index
-                dao.upsertTask(TaskState.stateToDto(task))
+            for(i in 0..tasks.size){
+                if(i < tasks.size){
+                    var task = tasks[i]
+                    task.position = i
+                    dao.upsertTask(com.ajsy.taskflow.ui.TaskState.stateToDto(task))
+                }
             }
         }
     }
