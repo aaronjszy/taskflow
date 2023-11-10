@@ -8,8 +8,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ajsy.taskflow.db.TaskDao
 import kotlinx.coroutines.launch
-import java.util.Timer
-import java.util.TimerTask
 
 class TaskFlowViewModel(
     private var dao: TaskDao
@@ -27,7 +25,7 @@ class TaskFlowViewModel(
 
     fun initList() {
         viewModelScope.launch {
-            var stateList = TaskState.dtoListToStateList(dao.getTasks())
+            val stateList = TaskState.dtoListToStateList(dao.getTasks())
             for(state in stateList) {
                 tasks.add(state)
             }
@@ -74,7 +72,7 @@ class TaskFlowViewModel(
     }
 
     fun addItem() {
-        var taskState = TaskState(newItemName, newItemTime)
+        val taskState = TaskState(newItemName, newItemTime)
         taskState.position = tasks.size
         tasks.add(taskState)
 
@@ -87,11 +85,11 @@ class TaskFlowViewModel(
     }
 
     fun moveTaskUp(task: TaskState) {
-        var currentIndex = tasks.indexOf(task)
+        val currentIndex = tasks.indexOf(task)
         if(currentIndex == 0) {
             return
         }
-        var newIndex = currentIndex-1;
+        val newIndex = currentIndex-1
 
         // If were moving the task to the top row,
         // the task currently there might have a
@@ -108,11 +106,11 @@ class TaskFlowViewModel(
     }
 
     fun moveTaskDown(task: TaskState) {
-        var currentIndex = tasks.indexOf(task)
+        val currentIndex = tasks.indexOf(task)
         if(currentIndex == tasks.size - 1) {
             return
         }
-        var newIndex = currentIndex+1;
+        val newIndex = currentIndex+1
 
         tasks[currentIndex] = tasks[newIndex]
         tasks[newIndex] = task
@@ -131,7 +129,7 @@ class TaskFlowViewModel(
         if(currentIndex == 0) {
             return
         }
-        val newIndex = 0;
+        val newIndex = 0
 
         tasks[currentIndex] = tasks[newIndex]
         tasks[newIndex] = task
@@ -164,9 +162,9 @@ class TaskFlowViewModel(
         viewModelScope.launch {
             for(i in 0..tasks.size){
                 if(i < tasks.size){
-                    var task = tasks[i]
+                    val task = tasks[i]
                     task.position = i
-                    dao.upsertTask(com.ajsy.taskflow.ui.TaskState.stateToDto(task))
+                    dao.upsertTask(TaskState.stateToDto(task))
                 }
             }
         }
