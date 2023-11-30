@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Bundle
-import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -42,20 +41,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
-import com.ajsy.taskflow.db.Task
 import com.ajsy.taskflow.db.TaskDatabase
 import com.ajsy.taskflow.ui.TaskFlowViewModel
 import com.ajsy.taskflow.ui.TaskState
 import com.ajsy.taskflow.ui.theme.TaskflowTheme
-import kotlin.math.log
 
 // TODO use room for persistence
 //   https://www.youtube.com/watch?v=bOd3wO0uFr8
@@ -110,7 +104,7 @@ fun TaskFlowView(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TaskRows(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
-    LazyColumn() {
+    LazyColumn {
         for(taskIndex in model.tasks.indices) {
             val task = model.tasks[taskIndex]
             item(key = task.getTaskId()) {

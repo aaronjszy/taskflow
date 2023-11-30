@@ -25,7 +25,7 @@ class TaskFlowViewModel(
 
     fun initList() {
         viewModelScope.launch {
-            val stateList = TaskState.dtoListToStateList(dao.getTasks())
+            val stateList = TaskState.dtoListToStateList(dao.getTasks(), dao, viewModelScope)
             for(state in stateList) {
                 tasks.add(state)
             }
@@ -47,20 +47,18 @@ class TaskFlowViewModel(
 
         moveTaskToTop(task)
 
-        task.start()
+        task.start(viewModelScope)
 
-//        timer = Timer()
-//        timer?.scheduleAtFixedRate(object : TimerTask() {
-//            override fun run() {
-//                task.checkpointTickTime()
-//            }
-//        }, 0L, 1000L)
+        viewModelScope.launch {
+            dao.upsertTask(TaskState.stateToDto(task))
+        }
     }
 
     private fun stopTimer(task: TaskState) {
-//        timer?.cancel()
-//        timer = null
         task.stop()
+        viewModelScope.launch {
+            dao.upsertTask(TaskState.stateToDto(task))
+        }
     }
 
     fun updateNewItemName(name: String) {
@@ -72,7 +70,7 @@ class TaskFlowViewModel(
     }
 
     fun addItem() {
-        val taskState = TaskState(newItemName, newItemTime)
+        val taskState = TaskState(newItemName, newItemTime, dao)
         taskState.position = tasks.size
         tasks.add(taskState)
 

@@ -3,12 +3,14 @@ package com.ajsy.taskflow.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.room.PrimaryKey
 import com.ajsy.taskflow.db.Task
+import com.ajsy.taskflow.db.TaskDao
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import java.util.Timer
 import java.util.TimerTask
 
-class TaskState(var name: String, var durationStr: String) {
+class TaskState(var name: String, var durationStr: String, var dao: TaskDao) {
     var id: Long = System.currentTimeMillis()
     var position: Int = 0
     var originalDuration: Long = stringMinutesToLongMillis(durationStr)
@@ -19,14 +21,19 @@ class TaskState(var name: String, var durationStr: String) {
     private var timer: Timer? = null
 
     companion object {
-        fun dtoToState(taskDto: Task): TaskState {
-            var taskState = TaskState(taskDto.name, taskDto.durationStr)
+        private fun dtoToState(taskDto: Task, dao: TaskDao, viewModelScope: CoroutineScope): TaskState {
+            val taskState = TaskState(taskDto.name, taskDto.durationStr, dao)
             taskState.id = taskDto.id
             taskState.position = taskDto.position
             taskState.taskTimerRunning = taskDto.taskTimerRunning
             taskState.remainingDuration = taskDto.remainingDuration
             taskState.originalDuration = taskDto.originalDuration
             taskState.taskTimerTickTime = taskDto.taskTimerTickTime
+            if(taskState.taskTimerRunning) {
+                taskState.start(viewModelScope)
+            } else {
+                taskState.stop()
+            }
             return taskState
         }
 
@@ -43,35 +50,32 @@ class TaskState(var name: String, var durationStr: String) {
             )
         }
 
-        fun dtoListToStateList(taskListDto: List<Task>): List<TaskState> {
-            return taskListDto.map { dtoToState(it) }
+        fun dtoListToStateList(
+            taskListDto: List<Task>,
+            dao: TaskDao,
+            viewModelScope: CoroutineScope
+        ): List<TaskState> {
+            return taskListDto.map { dtoToState(it, dao, viewModelScope) }
         }
-    }
-
-    fun resetElapsedMillis() {
-        this.remainingDuration = originalDuration
     }
 
     fun getTaskId(): Long {
         return id
     }
 
-    fun setRemainingDurationForTesting(remainingDuration: Long): TaskState {
-        this.remainingDuration = remainingDuration
-        return this
-    }
-
-
-    fun start() {
+    fun start(viewModelScope: CoroutineScope) {
         this.taskTimerTickTime = System.currentTimeMillis()
         this.taskTimerRunning = true
 
-        var thisTask = this
+        val thisTask = this
 
         timer = Timer()
         timer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 thisTask.checkpointTickTime()
+                viewModelScope.launch {
+                    dao.upsertTask(stateToDto(thisTask))
+                }
             }
         }, 0L, 500L)
     }
