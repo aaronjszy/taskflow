@@ -127,10 +127,10 @@ class TaskFlowViewModel(
         if(currentIndex == 0) {
             return
         }
-        val newIndex = 0
 
-        tasks[currentIndex] = tasks[newIndex]
-        tasks[newIndex] = task
+        for(i in 0..(currentIndex-1)){
+            moveTaskUp(task)
+        }
 
         syncTaskPositions()
     }

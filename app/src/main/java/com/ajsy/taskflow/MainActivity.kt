@@ -50,6 +50,12 @@ import com.ajsy.taskflow.db.TaskDatabase
 import com.ajsy.taskflow.ui.TaskFlowViewModel
 import com.ajsy.taskflow.ui.TaskState
 import com.ajsy.taskflow.ui.theme.TaskflowTheme
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.TimeZone
 
 // TODO use room for persistence
 //   https://www.youtube.com/watch?v=bOd3wO0uFr8
@@ -105,10 +111,22 @@ fun TaskFlowView(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
 @Composable
 fun TaskRows(model: TaskFlowViewModel, modifier: Modifier = Modifier) {
     LazyColumn {
+        var durationSum: Long = 0
+        val formatter = DateTimeFormatter.ofPattern("h:mm a")
+
         for(taskIndex in model.tasks.indices) {
             val task = model.tasks[taskIndex]
+
+            val startTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(System.currentTimeMillis() + durationSum), ZonedDateTime.now().getOffset())
+            val formattedStartTime = formatter.format(startTime)
+
+            durationSum += task.remainingDuration
+
+            val endTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(System.currentTimeMillis() + durationSum), ZonedDateTime.now().getOffset())
+            val formattedEndTime = formatter.format(endTime)
+
             item(key = task.getTaskId()) {
-                TaskRow(model, task, taskIndex == 0, modifier = Modifier.animateItemPlacement())
+                TaskRow(model, task, formattedStartTime, formattedEndTime, taskIndex == 0, modifier = Modifier.animateItemPlacement())
             }
         }
     }
@@ -136,7 +154,7 @@ fun Context.findActivity(): Activity? {
 }
 
 @Composable
-fun TaskRow(model: TaskFlowViewModel, task : TaskState, isFirstRow : Boolean, modifier: Modifier = Modifier) {
+fun TaskRow(model: TaskFlowViewModel, task : TaskState, formattedStartTime : String, formattedEndTime : String, isFirstRow : Boolean, modifier: Modifier = Modifier) {
     if(task.taskTimerRunning) {
         KeepScreenOn()
     }
@@ -147,29 +165,41 @@ fun TaskRow(model: TaskFlowViewModel, task : TaskState, isFirstRow : Boolean, mo
     else if(task.percentageComplete() >= 1)
         color = Color.Red
 
-    var fontSize = 12.sp
+    var fontSize = 15.sp
     if(isFirstRow) {
         fontSize = 32.sp
     }
 
-    Column(modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth().drawBehind {
-                drawRect(
-                    color = color,
-                    size = Size(
-                        drawContext.size.width * (task.percentageComplete()),
-                        drawContext.size.height
-                    )
-                )
-            },
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(task.name, fontSize = fontSize,  modifier = Modifier.weight(1f))
-            Text(task.formatTimeRemaining(), fontSize = fontSize)
-        }
+    Row(modifier) {
+        Row{
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().drawBehind {
+                        drawRect(
+                            color = color,
+                            size = Size(
+                                drawContext.size.width * (task.percentageComplete()),
+                                drawContext.size.height
+                            )
+                        )
+                    },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(task.name, fontSize = fontSize, modifier = Modifier.weight(1f))
+                    Text(task.formatTimeRemaining(), fontSize = fontSize)
+                }
 
-        TaskControls(model, task)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(formattedStartTime, fontSize = 12.sp)
+                    Text(formattedEndTime, fontSize = 12.sp)
+                }
+
+                TaskControls(model, task)
+            }
+        }
     }
 }
 
