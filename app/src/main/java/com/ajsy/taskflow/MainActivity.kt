@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,8 +37,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -159,6 +162,9 @@ fun TaskRow(model: TaskFlowViewModel, task : TaskState, formattedStartTime : Str
         KeepScreenOn()
     }
 
+    val offsetY = remember { mutableStateOf(0f) }
+    val haptic = LocalHapticFeedback.current
+
     var color = Color.Green
     if(task.percentageComplete() > 0.8 && task.percentageComplete() < 1)
         color = Color.Yellow
@@ -170,7 +176,24 @@ fun TaskRow(model: TaskFlowViewModel, task : TaskState, formattedStartTime : Str
         fontSize = 32.sp
     }
 
-    Row(modifier) {
+    Row(modifier.pointerInput(Unit) {
+        detectDragGesturesAfterLongPress(
+            onDrag = { _, dragAmount ->
+                offsetY.value += dragAmount.y
+                if (offsetY.value > 150f) {
+                    model.moveTaskDown(task)
+                    offsetY.value = 0f
+                }
+                if (offsetY.value < -150f) {
+                    model.moveTaskUp(task)
+                    offsetY.value = 0f
+                }
+            },
+            onDragStart = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            },
+        )
+    }) {
         Row{
             Column {
                 Row(
@@ -205,29 +228,10 @@ fun TaskRow(model: TaskFlowViewModel, task : TaskState, formattedStartTime : Str
 
 @Composable
 fun TaskControls(model: TaskFlowViewModel, task : TaskState, modifier: Modifier = Modifier) {
-    val offsetY = remember { mutableStateOf(0f) }
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(modifier = Modifier.pointerInput(Unit) {
-            detectVerticalDragGestures { _, dragAmount ->
-                offsetY.value += dragAmount
-                if (offsetY.value > 150f) {
-                    model.moveTaskDown(task)
-                    offsetY.value = 0f
-                }
-                if (offsetY.value < -150f) {
-                    model.moveTaskUp(task)
-                    offsetY.value = 0f
-                }
-            }
-        }) {
-            Button(onClick = {}) {
-                Text("\uD83D\uDD03")
-            }
-        }
         Button(onClick = {
             model.deleteTask(task)
         }) {
