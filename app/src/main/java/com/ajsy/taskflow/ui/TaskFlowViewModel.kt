@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
-import java.time.ZonedDateTime
+import java.time.ZoneId
 
 class TaskFlowViewModel(
     private var taskRepository: TaskRepository
@@ -17,7 +17,6 @@ class TaskFlowViewModel(
 
     private val _newItemName = MutableStateFlow("")
     val newItemName: StateFlow<String> = _newItemName
-
 
     private val _newItemTime = MutableStateFlow("")
     val newItemTime: StateFlow<String> = _newItemTime
@@ -30,18 +29,13 @@ class TaskFlowViewModel(
 
     fun initList() {
         viewModelScope.launch {
-            // Fetch the tasks from the repository and convert them to TaskState
             val stateList = TaskState.dtoListToStateList(taskRepository.getTasks(), taskRepository, viewModelScope)
-
-            // Clear the current list of tasks
             _tasks.clear()
-
-            // Add each task to the mutable state list
             _tasks.addAll(stateList)
         }
     }
 
-    fun toggleTimer(task : TaskState) {
+    fun toggleTimer(task: TaskState) {
         if (task.taskTimerRunning) {
             stopTimer(task)
         } else {
@@ -49,15 +43,10 @@ class TaskFlowViewModel(
         }
     }
 
-    private fun startTimerForTask(task : TaskState) {
-        // Stop the timer for the task in the first row
-        // in case its already running since were going to
+    private fun startTimerForTask(task: TaskState) {
         stopAllTimers()
-
-        moveTaskToTop(task, false, false)
-
+        moveTaskToTop(task, noSync = false, noStopTimer = false)
         task.start(viewModelScope)
-
         viewModelScope.launch {
             taskRepository.updateTask(TaskState.stateToDto(task))
             syncTasks()
@@ -65,23 +54,15 @@ class TaskFlowViewModel(
     }
 
     fun updateTask(updatedTask: TaskState) {
-        // Find the index of the task to update
         val index = _tasks.indexOfFirst { it.id == updatedTask.id }
         if (index != -1) {
-            // Replace the task at the found index
             _tasks[index] = updatedTask
         }
     }
 
-
     fun stopAllTimers() {
-        for (task in _tasks) {
-            if (task.taskTimerRunning) {
-                stopTimer(task) // Stop the timer for tasks that are running
-            }
-        }
+        _tasks.filter { it.taskTimerRunning }.forEach { stopTimer(it) }
     }
-
 
     private fun stopTimer(task: TaskState) {
         task.stop()
@@ -99,7 +80,7 @@ class TaskFlowViewModel(
     }
 
     fun addItem() {
-        if(_newItemTime.value=="" && lineIncludesTime(_newItemName.value)) {
+        if (_newItemTime.value.isEmpty() && lineIncludesTime(_newItemName.value)) {
             val multipleTasks = parseMultilineString(_newItemName.value)
             multipleTasks.forEach { task ->
                 val taskName = task[0]
@@ -109,42 +90,32 @@ class TaskFlowViewModel(
         } else {
             addSingleItem(_newItemName.value, _newItemTime.value)
         }
-
         _newItemTime.value = ""
         _newItemName.value = ""
     }
 
     private fun addTask(taskState: TaskState) {
-        _tasks.add(taskState) // Directly add the new task to the mutable state list
+        _tasks.add(taskState)
     }
 
     fun addSingleItem(taskName: String, taskTime: String) {
-        var assignedTaskTime = taskTime.ifEmpty { "1" } // Use Kotlin's ifEmpty to assign default value
-
+        val assignedTaskTime = taskTime.ifEmpty { "1" }
         val taskState = TaskState(taskName, assignedTaskTime, taskRepository).apply {
-            position = _tasks.size // Set the position of the new task
+            position = _tasks.size
         }
-
-        // Create a new list that includes the new task
         val newTasksList = _tasks.toMutableList().apply {
-            add(taskState) // Add the new task to the list
+            add(taskState)
         }
-
-        // Update the tasks with the new list
-        _tasks.clear() // Clear the current list
-        _tasks.addAll(newTasksList) // Add all tasks from the new list
-
-        // Manage task positioning based on timer state
+        _tasks.clear()
+        _tasks.addAll(newTasksList)
         if (_addItemMode.value == "push") {
             if (_tasks.firstOrNull()?.taskTimerRunning == true) {
-                moveTaskToTop(taskState, true, true)
+                moveTaskToTop(taskState, noSync = true, noStopTimer = true)
                 moveTaskDown(taskState)
             } else {
-                moveTaskToTop(taskState, false, false)
+                moveTaskToTop(taskState, noSync = false, noStopTimer = false)
             }
         }
-
-        // Asynchronously upsert the new task to the repository
         viewModelScope.launch {
             taskRepository.upsertTask(TaskState.stateToDto(taskState))
             syncTasks()
@@ -152,151 +123,94 @@ class TaskFlowViewModel(
     }
 
     fun lineIncludesTime(line: String): Boolean {
-        // Regular expression to match a line that ends with a number
         val regex = """\d+$""".toRegex()
-
-        // Check if the line matches the regex (i.e., ends with a number)
         return regex.containsMatchIn(line)
     }
 
     fun parseMultilineString(input: String): Array<Array<String>> {
-        // Split the input string into lines
         val lines = input.lines()
-
-        // Process each line to extract task name and time
         val resultList = lines.map { line ->
-            // Use a regular expression to match the name and time
             val regex = """(.*)\s+(\d+)$""".toRegex()
             val matchResult = regex.find(line)
-
             if (matchResult != null) {
                 val (name, time) = matchResult.destructured
                 arrayOf(name.trim(), time.trim())
-            } else if (line.trim() != "") {
+            } else if (line.trim().isNotEmpty()) {
                 arrayOf(line.trim(), "1")
             } else {
                 null
             }
         }.filterNotNull()
-
-        // Convert the list to an array of arrays
         return resultList.toTypedArray()
     }
 
     fun switchAddItemMode() {
-        if(_addItemMode.value == "append") {
-            _addItemMode.value = "push"
-        } else if(_addItemMode.value == "push") {
-            _addItemMode.value = "append"
-        }
+        _addItemMode.value = if (_addItemMode.value == "append") "push" else "append"
     }
+
     fun moveTaskUp(task: TaskState, noStopTimer: Boolean) {
         val currentIndex = _tasks.indexOf(task)
-
-        if (currentIndex <= 0) {
-            return // No need to move if the task is at the top or not found
-        }
-
+        if (currentIndex <= 0) return
         val newIndex = currentIndex - 1
-
-        // If we're moving the task to the top row,
-        // the task currently there might have a timer running; we need to stop it
-        if (newIndex == 0 && !noStopTimer) {
-            stopTimer(_tasks[newIndex])
-        }
-
-        // Swap the tasks in the mutable list
+        if (newIndex == 0 && !noStopTimer) stopTimer(_tasks[newIndex])
         _tasks[currentIndex] = _tasks[newIndex]
         _tasks[newIndex] = task
-
-        // Update the positions of the tasks
         _tasks[currentIndex].position = currentIndex
         _tasks[newIndex].position = newIndex
-
-        // Optionally, sync tasks asynchronously
         syncTasksAsync()
     }
 
     fun moveTaskDown(task: TaskState) {
         val currentIndex = _tasks.indexOf(task)
-
-        if (currentIndex == _tasks.size - 1) {
-            return // No need to move if the task is at the bottom
-        }
-
+        if (currentIndex == _tasks.size - 1) return
         val newIndex = currentIndex + 1
-
-        // Swap the tasks in the mutable list
         _tasks[currentIndex] = _tasks[newIndex]
         _tasks[newIndex] = task
-
-        // If a timer for this task was running, it should now be stopped
         stopTimer(task)
-
-        // Optionally, sync tasks asynchronously
         syncTasksAsync()
     }
 
     private fun moveTaskToTop(task: TaskState, noSync: Boolean, noStopTimer: Boolean) {
         val currentIndex = _tasks.indexOf(task)
-
-        if (currentIndex == 0) {
-            return // No need to move if the task is already at the top
-        }
-
-        // Move the task to the top by moving it up one position at a time
+        if (currentIndex == 0) return
         for (i in currentIndex downTo 1) {
             moveTaskUp(_tasks[i], noStopTimer)
         }
-
-        if (!noSync) {
-            syncTasksAsync() // Sync tasks asynchronously if needed
-        }
+        if (!noSync) syncTasksAsync()
     }
 
     data class TimeRange(val startTime: LocalDateTime, val endTime: LocalDateTime)
 
     fun calcTimeRange(targetTask: TaskState): TimeRange {
         var durationSum: Long = 0
-        var startTime: LocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(System.currentTimeMillis()), ZonedDateTime.now().offset)
-        var endTime: LocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(System.currentTimeMillis()), ZonedDateTime.now().offset)
-
-        // Get the current list of tasks directly
+        val currentTime = Instant.now()
+        var startTime = LocalDateTime.ofInstant(currentTime, ZoneId.systemDefault())
+        var endTime = LocalDateTime.ofInstant(currentTime, ZoneId.systemDefault())
         for (task in _tasks) {
             if (task.id == targetTask.id) {
-                startTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(System.currentTimeMillis() + durationSum), ZonedDateTime.now().offset)
+                startTime = LocalDateTime.ofInstant(currentTime.plusMillis(durationSum), ZoneId.systemDefault())
             }
-
             if (task.remainingDuration > 0) {
                 durationSum += task.remainingDuration
             }
-
             if (task.id == targetTask.id) {
-                endTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(System.currentTimeMillis() + durationSum), ZonedDateTime.now().offset)
+                endTime = LocalDateTime.ofInstant(currentTime.plusMillis(durationSum), ZoneId.systemDefault())
                 break
             }
         }
-
         return TimeRange(startTime, endTime)
     }
 
     fun deleteTask(task: TaskState) {
-        // Stop timer if the task is at the top
         var wasTimerRunning = false
-
         if (task == _tasks.firstOrNull()) {
             wasTimerRunning = task.taskTimerRunning
             stopTimer(task)
         }
-
         _tasks.remove(task)
-
-        // Start the timer for the next task
         if (wasTimerRunning && _tasks.isNotEmpty()) {
             startTimerForTask(_tasks[0])
         }
-
-        // Runs asynchronously
         viewModelScope.launch {
             taskRepository.deleteTask(TaskState.stateToDto(task))
             syncTasks()
