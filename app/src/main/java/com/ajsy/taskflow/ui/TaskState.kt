@@ -5,13 +5,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.ajsy.taskflow.db.Task
 import com.ajsy.taskflow.db.TaskDao
+import com.ajsy.taskflow.db.TaskRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.Timer
 import java.util.TimerTask
+import java.util.UUID
 
-class TaskState(var name: String, var durationStr: String, var dao: TaskDao) {
-    var id: Long = System.currentTimeMillis()
+data class TaskState(
+    var name: String,
+    var durationStr: String,
+    var taskRepository: TaskRepository
+) {
+    var id: String = UUID.randomUUID().toString()
     var position: Int = 0
     var originalDuration: Long = stringMinutesToLongMillis(durationStr)
     var remainingDuration: Long by mutableStateOf(originalDuration)
@@ -21,8 +27,8 @@ class TaskState(var name: String, var durationStr: String, var dao: TaskDao) {
     private var timer: Timer? = null
 
     companion object {
-        private fun dtoToState(taskDto: Task, dao: TaskDao, viewModelScope: CoroutineScope): TaskState {
-            val taskState = TaskState(taskDto.name, taskDto.durationStr, dao)
+        private fun dtoToState(taskDto: Task, taskRepository: TaskRepository, viewModelScope: CoroutineScope): TaskState {
+            val taskState = TaskState(taskDto.name, taskDto.durationStr, taskRepository)
             taskState.id = taskDto.id
             taskState.position = taskDto.position
             taskState.taskTimerRunning = taskDto.taskTimerRunning
@@ -52,14 +58,14 @@ class TaskState(var name: String, var durationStr: String, var dao: TaskDao) {
 
         fun dtoListToStateList(
             taskListDto: List<Task>,
-            dao: TaskDao,
+            taskRepository: TaskRepository,
             viewModelScope: CoroutineScope
         ): List<TaskState> {
-            return taskListDto.map { dtoToState(it, dao, viewModelScope) }
+            return taskListDto.map { dtoToState(it, taskRepository, viewModelScope) }
         }
     }
 
-    fun getTaskId(): Long {
+    fun getTaskId(): String {
         return id
     }
 
@@ -67,15 +73,12 @@ class TaskState(var name: String, var durationStr: String, var dao: TaskDao) {
         this.taskTimerTickTime = System.currentTimeMillis()
         this.taskTimerRunning = true
 
-        val thisTask = this
-
+        // TODO: Race condition, constantly calling update means that we can overwrite pausing the timer
+        //       need to get all changes to taskState combined with calls to db upate within viewmodel scope
         timer = Timer()
         timer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
-                thisTask.checkpointTickTime()
-                viewModelScope.launch {
-                    dao.upsertTask(stateToDto(thisTask))
-                }
+                checkpointTickTime(viewModelScope)
             }
         }, 0L, 500L)
     }
@@ -84,12 +87,17 @@ class TaskState(var name: String, var durationStr: String, var dao: TaskDao) {
         timer?.cancel()
         timer = null
 
+        // TODO: another place where our changes could get lost
         this.taskTimerRunning = false
     }
 
-    fun checkpointTickTime() {
-        this.remainingDuration = this.remainingDuration - (System.currentTimeMillis() - this.taskTimerTickTime)
-        this.taskTimerTickTime = System.currentTimeMillis()
+    fun checkpointTickTime(viewModelScope: CoroutineScope) {
+        val thisTask = this
+        viewModelScope.launch {
+            remainingDuration = remainingDuration - (System.currentTimeMillis() - taskTimerTickTime)
+            taskTimerTickTime = System.currentTimeMillis()
+            taskRepository.updateTask(stateToDto(thisTask))
+        }
     }
 
     private fun stringMinutesToLongMillis(durationStr :String): Long {
@@ -118,5 +126,13 @@ class TaskState(var name: String, var durationStr: String, var dao: TaskDao) {
         val remainingSeconds = absSeconds % 60
 
         return "$sign$minutes:${String.format("%02d", remainingSeconds)}"
+    }
+
+    suspend fun setPosition(i: Int, viewModelScope: CoroutineScope) {
+        var thisTask = this
+        viewModelScope.launch {
+            position = i
+            taskRepository.updateTask(stateToDto(thisTask))
+        }
     }
 }

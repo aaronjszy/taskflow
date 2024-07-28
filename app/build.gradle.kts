@@ -66,6 +66,11 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
     implementation("org.burnoutcrew.composereorderable:reorderable:0.9.6")
+    implementation("me.saket.swipe:swipe:1.2.0")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.2")
+
+    implementation("com.google.accompanist:accompanist-permissions:0.31.1-alpha")
 
     //Room
     implementation("androidx.room:room-runtime:2.5.0")
