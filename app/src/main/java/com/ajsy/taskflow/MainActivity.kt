@@ -70,7 +70,7 @@ import androidx.room.Room
 import com.ajsy.taskflow.db.TaskDatabase
 import com.ajsy.taskflow.db.TaskRepository
 import com.ajsy.taskflow.ui.TaskFlowViewModel
-import com.ajsy.taskflow.ui.TaskState
+import com.ajsy.taskflow.ui.TaskViewModel
 import com.ajsy.taskflow.ui.theme.TaskflowTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -137,7 +137,7 @@ fun TaskFlowView(model: TaskFlowViewModel, notificationService: NotificationServ
             TaskRows(model, notificationService, listState)
         }
         Column{
-            Text(text = "v0.11", fontSize = 10.sp)
+            Text(text = "v0.13", fontSize = 10.sp)
         }
         Column{
             NewTaskRow(model, listState)
@@ -193,7 +193,7 @@ fun Context.findActivity(): Activity? {
 }
 
 @Composable
-fun TaskRow(model: TaskFlowViewModel, notificationService: NotificationService, task : TaskState, formattedStartTime : String, formattedEndTime : String, listState: LazyListState, modifier: Modifier = Modifier) {
+fun TaskRow(model: TaskFlowViewModel, notificationService: NotificationService, task : TaskViewModel, formattedStartTime : String, formattedEndTime : String, listState: LazyListState, modifier: Modifier = Modifier) {
     if(task.taskTimerRunning) {
         KeepScreenOn()
     }
