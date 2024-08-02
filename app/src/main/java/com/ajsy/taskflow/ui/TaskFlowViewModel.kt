@@ -147,7 +147,12 @@ class TaskFlowViewModel(
                 val currentIndex = _tasks.indexOf(task)
                 if (currentIndex <= 0) return@launch
                 val newIndex = currentIndex - 1
-                if (newIndex == 0 && !noStopTimer) _tasks[newIndex].stop()
+                if (newIndex == 0 && !noStopTimer) {
+                    if (_tasks[newIndex].taskTimerRunning) {
+                        _tasks[newIndex].stop()
+                        task.start()
+                    }
+                }
                 _tasks[currentIndex] = _tasks[newIndex]
                 _tasks[newIndex] = task
                 _tasks[currentIndex].setPosition(currentIndex, viewModelScope)
