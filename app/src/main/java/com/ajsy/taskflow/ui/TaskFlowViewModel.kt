@@ -51,15 +51,17 @@ class TaskFlowViewModel(
         if (task.taskTimerRunning) {
             task.stop()
         } else {
-            startTimerForTask(task)
+            startTimerForTaskAsync(task)
         }
     }
 
-    private fun startTimerForTask(task: TaskViewModel) {
-        stopAllTimers()
-        moveTaskToTop(task, noSync = false, noStopTimer = false)
-        task.start()
-        syncTasksAsync()
+    private fun startTimerForTaskAsync(task: TaskViewModel) {
+        viewModelScope.launch {
+            stopAllTimers()
+            moveTaskToTop(task, noSync = false, noStopTimer = false)
+            task.start()
+            syncTasksAsync()
+        }
     }
 
     fun updateNewItemName(name: String) {
@@ -80,16 +82,16 @@ class TaskFlowViewModel(
             multipleTasks.forEach { task ->
                 val taskName = task[0]
                 val taskTime = task[1]
-                addSingleItem(taskName, taskTime)
+                addSingleItemAsync(taskName, taskTime)
             }
         } else {
-            addSingleItem(_newItemName.value, _newItemTime.value)
+            addSingleItemAsync(_newItemName.value, _newItemTime.value)
         }
         _newItemTime.value = ""
         _newItemName.value = ""
     }
 
-    fun addSingleItem(taskName: String, taskTime: String) {
+    fun addSingleItemAsync(taskName: String, taskTime: String) {
         viewModelScope.launch {
             val assignedTaskTime = taskTime.ifEmpty { "1" }
             val taskViewModel = TaskViewModel(taskName, assignedTaskTime, taskRepository, viewModelScope).apply {
@@ -105,17 +107,19 @@ class TaskFlowViewModel(
                 _tasks.addAll(newTasksList)
             }
 
-            if (_addItemMode.value == "push") {
-                if (_tasks.firstOrNull()?.taskTimerRunning == true) {
-                    moveTaskToTop(taskViewModel, noSync = true, noStopTimer = true)
-                    moveTaskDown(taskViewModel)
-                } else {
-                    moveTaskToTop(taskViewModel, noSync = false, noStopTimer = false)
+            viewModelScope.launch {
+                if (_addItemMode.value == "push") {
+                    if (_tasks.firstOrNull()?.taskTimerRunning == true) {
+                        moveTaskToTop(taskViewModel, noSync = true, noStopTimer = true)
+                        moveTaskDown(taskViewModel)
+                    } else {
+                        moveTaskToTop(taskViewModel, noSync = false, noStopTimer = false)
+                    }
                 }
-            }
 
-            taskRepository.upsertTask(taskViewModel)
-            syncTasks()
+                taskRepository.upsertTask(taskViewModel)
+                syncTasks()
+            }
         }
     }
 
@@ -141,44 +145,52 @@ class TaskFlowViewModel(
         return resultList.toTypedArray()
     }
 
-    fun moveTaskUp(task: TaskViewModel, noStopTimer: Boolean) {
-        viewModelScope.launch {
-            taskListMutex.withLock {
-                val currentIndex = _tasks.indexOf(task)
-                if (currentIndex <= 0) return@launch
-                val newIndex = currentIndex - 1
-                if (newIndex == 0 && !noStopTimer) {
-                    if (_tasks[newIndex].taskTimerRunning) {
-                        _tasks[newIndex].stop()
-                        task.start()
-                    }
+    suspend fun moveTaskUp(task: TaskViewModel, noStopTimer: Boolean) {
+        taskListMutex.withLock {
+            val currentIndex = _tasks.indexOf(task)
+            if (currentIndex <= 0) return
+            val newIndex = currentIndex - 1
+            if (newIndex == 0 && !noStopTimer) {
+                if (_tasks[newIndex].taskTimerRunning) {
+                    _tasks[newIndex].stop()
+                    task.start()
                 }
-                _tasks[currentIndex] = _tasks[newIndex]
-                _tasks[newIndex] = task
-                _tasks[currentIndex].setPosition(currentIndex, viewModelScope)
-                _tasks[newIndex].setPosition(newIndex, viewModelScope)
             }
-            syncTasks()
+            _tasks[currentIndex] = _tasks[newIndex]
+            _tasks[newIndex] = task
+            _tasks[currentIndex].position = currentIndex
+            _tasks[newIndex].position = newIndex
         }
     }
 
-    fun moveTaskDown(task: TaskViewModel) {
+    fun moveTaskUpAsync(task: TaskViewModel, noStopTimer: Boolean) {
         viewModelScope.launch {
-            taskListMutex.withLock {
-                val currentIndex = _tasks.indexOf(task)
-                if (currentIndex == _tasks.size - 1) return@launch
-                val newIndex = currentIndex + 1
-                _tasks[currentIndex] = _tasks[newIndex]
-                _tasks[currentIndex].setPosition(currentIndex, viewModelScope)
-                _tasks[newIndex] = task
-                _tasks[newIndex].setPosition(newIndex, viewModelScope)
-            }
-            task.stop()
+            moveTaskUp(task, noStopTimer)
             syncTasks()
         }
     }
 
-    private fun moveTaskToTop(task: TaskViewModel, noSync: Boolean, noStopTimer: Boolean) {
+    private suspend fun moveTaskDown(task: TaskViewModel) {
+        taskListMutex.withLock {
+            val currentIndex = _tasks.indexOf(task)
+            if (currentIndex == _tasks.size - 1) return
+            val newIndex = currentIndex + 1
+            _tasks[currentIndex] = _tasks[newIndex]
+            _tasks[currentIndex].position = currentIndex
+            _tasks[newIndex] = task
+            _tasks[newIndex].position = newIndex
+            task.stop()
+        }
+    }
+
+    fun moveTaskDownAsync(task: TaskViewModel) {
+        viewModelScope.launch {
+            moveTaskDown(task)
+            syncTasks()
+        }
+    }
+
+    private suspend fun moveTaskToTop(task: TaskViewModel, noSync: Boolean, noStopTimer: Boolean) {
         val currentIndex = _tasks.indexOf(task)
         if (currentIndex == 0) return
         for (i in currentIndex downTo 1) {
@@ -188,12 +200,6 @@ class TaskFlowViewModel(
     }
 
     data class TimeRange(val startTime: LocalDateTime, val endTime: LocalDateTime)
-
-//    fun updateAllTimeRanges() {
-//        _tasks.forEach {
-//            it.setTimeRange(calcTimeRange(it))
-//        }
-//    }
 
     fun calcTimeRange(targetTask: TaskViewModel): TimeRange {
         var durationSum: Long = 0
@@ -215,7 +221,7 @@ class TaskFlowViewModel(
         return TimeRange(startTime, endTime)
     }
 
-    fun deleteTask(task: TaskViewModel) {
+    fun deleteTaskAsync(task: TaskViewModel) {
         viewModelScope.launch {
             var wasTimerRunning = false
             taskListMutex.withLock {
@@ -226,7 +232,7 @@ class TaskFlowViewModel(
                 _tasks.remove(task)
             }
             if (wasTimerRunning && _tasks.isNotEmpty()) {
-                startTimerForTask(_tasks[0])
+                startTimerForTaskAsync(_tasks[0])
             }
 
             taskRepository.deleteTask(task)

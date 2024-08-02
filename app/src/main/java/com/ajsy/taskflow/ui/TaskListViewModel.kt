@@ -70,8 +70,8 @@ data class TaskListViewModel(
                 if (newIndex == 0 && !noStopTimer) _tasks[newIndex].stop()
                 _tasks[currentIndex] = _tasks[newIndex]
                 _tasks[newIndex] = task
-                _tasks[currentIndex].setPosition(currentIndex, viewModelScope)
-                _tasks[newIndex].setPosition(newIndex, viewModelScope)
+                _tasks[currentIndex].position = currentIndex
+                _tasks[newIndex].position = newIndex
             }
             syncTasks()
         }
@@ -84,9 +84,9 @@ data class TaskListViewModel(
                 if (currentIndex == _tasks.size - 1) return@launch
                 val newIndex = currentIndex + 1
                 _tasks[currentIndex] = _tasks[newIndex]
-                _tasks[currentIndex].setPosition(currentIndex, viewModelScope)
+                _tasks[currentIndex].position = currentIndex
                 _tasks[newIndex] = task
-                _tasks[newIndex].setPosition(newIndex, viewModelScope)
+                _tasks[newIndex].position = newIndex
             }
             task.stop()
             syncTasks()

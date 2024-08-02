@@ -225,7 +225,7 @@ fun TaskRow(model: TaskFlowViewModel, task : TaskViewModel, listState: LazyListS
         icon = rememberVectorPainter(Icons.TwoTone.Delete),
         background = Color.Red,
         onSwipe = {
-            model.deleteTask(task)
+            model.deleteTaskAsync(task)
         }
     )
     val playPause = SwipeAction(
@@ -275,11 +275,11 @@ fun TaskRow(model: TaskFlowViewModel, task : TaskViewModel, listState: LazyListS
                     onDrag = { _, dragAmount ->
                         dragOffsetY.value += dragAmount.y
                         if (dragOffsetY.value > 150f) {
-                            model.moveTaskDown(task)
+                            model.moveTaskDownAsync(task)
                             dragOffsetY.value = 0f
                         }
                         if (dragOffsetY.value < -150f) {
-                            model.moveTaskUp(task, false)
+                            model.moveTaskUpAsync(task, false)
                             dragOffsetY.value = 0f
                         }
                     },

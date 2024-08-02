@@ -106,12 +106,20 @@ data class TaskViewModel(
         return "$sign$minutes:${String.format("%02d", remainingSeconds)}"
     }
 
-    suspend fun setPosition(i: Int, viewModelScope: CoroutineScope) {
-        viewModelScope.launch {
-            updateMutex.withLock {
-                position = i
-                taskRepository.updateTask(this@TaskViewModel)
-            }
+    suspend fun setPositionAsync(i: Int) {
+        updateMutex.withLock {
+            position = i
+            taskRepository.updateTask(this@TaskViewModel)
+        }
+    }
+
+//    fun setPosition(i: Int) {
+//        position = i
+//    }
+
+    suspend fun sync() {
+        updateMutex.withLock {
+            taskRepository.updateTask(this@TaskViewModel)
         }
     }
 }
