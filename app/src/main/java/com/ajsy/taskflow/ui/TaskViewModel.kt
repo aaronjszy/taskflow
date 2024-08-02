@@ -25,18 +25,17 @@ data class TaskViewModel(
     var remainingDuration: Long by mutableStateOf(originalDuration)
     var taskTimerTickTime: Long = 0
     var taskTimerRunning: Boolean  by mutableStateOf(false)
+//    var startTime: LocalDateTime by mutableStateOf(LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()))
+//    var endTime: LocalDateTime by mutableStateOf(LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()))
 
     val updateMutex = Mutex()
 
-    //TODO: I think this class is getting leaked and we just have a bunch of timers
-    // emitting updates for old versions of each task
     private var timer: Job? = null
 
-    //TODO: i think i know what the problem is now, we are concurrently reading and writing to this
-    // class all the time. thats not safe, it doesnt really work. Its causing wacky behavior when
-    // syncing to the db i think. this is one thing that stateflow will do for us. we can write to the
-    // flow from coroutines concurrently, then you can have observers that can read the latest version and will
-    // get updates, presumably, the room db can be setup to be updated whenever the state is updated
+//    fun setTimeRange(timeRange: TaskFlowViewModel.TimeRange) {
+//        this.startTime = timeRange.startTime
+//        this.endTime = timeRange.endTime
+//    }
 
     fun start() {
         timer = viewModelScope.launch {

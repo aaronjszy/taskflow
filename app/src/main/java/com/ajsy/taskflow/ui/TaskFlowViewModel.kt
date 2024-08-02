@@ -101,7 +101,6 @@ class TaskFlowViewModel(
                     add(taskViewModel)
                 }
 
-                stopAllTimers()
                 _tasks.clear()
                 _tasks.addAll(newTasksList)
             }
@@ -184,6 +183,12 @@ class TaskFlowViewModel(
     }
 
     data class TimeRange(val startTime: LocalDateTime, val endTime: LocalDateTime)
+
+//    fun updateAllTimeRanges() {
+//        _tasks.forEach {
+//            it.setTimeRange(calcTimeRange(it))
+//        }
+//    }
 
     fun calcTimeRange(targetTask: TaskViewModel): TimeRange {
         var durationSum: Long = 0

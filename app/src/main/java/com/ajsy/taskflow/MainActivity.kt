@@ -151,19 +151,10 @@ fun TaskRows(model: TaskFlowViewModel, notificationService: NotificationService,
     val tasks = model.tasks // Directly use the list of tasks
 
     LazyColumn(state = listState, modifier = modifier) { // Use the modifier here
-        val formatter = DateTimeFormatter.ofPattern("h:mm a")
-
         items(tasks, key = { it.id }) { task -> // Ensure each item has a unique key
-            val timeRange = model.calcTimeRange(task)
-            val formattedStartTime = formatter.format(timeRange.startTime)
-            val formattedEndTime = formatter.format(timeRange.endTime)
-
             TaskRow(
                 model,
-                notificationService,
                 task,
-                formattedStartTime,
-                formattedEndTime,
                 listState,
                 modifier = Modifier.animateItemPlacement()
             )
@@ -193,7 +184,12 @@ fun Context.findActivity(): Activity? {
 }
 
 @Composable
-fun TaskRow(model: TaskFlowViewModel, notificationService: NotificationService, task : TaskViewModel, formattedStartTime : String, formattedEndTime : String, listState: LazyListState, modifier: Modifier = Modifier) {
+fun TaskRow(model: TaskFlowViewModel, task : TaskViewModel, listState: LazyListState, modifier: Modifier = Modifier) {
+    val formatter = DateTimeFormatter.ofPattern("h:mm a")
+    val timeRange = model.calcTimeRange(task)
+    val formattedStartTime = formatter.format(timeRange.startTime)
+    val formattedEndTime = formatter.format(timeRange.endTime)
+
     if(task.taskTimerRunning) {
         KeepScreenOn()
     }
@@ -201,7 +197,6 @@ fun TaskRow(model: TaskFlowViewModel, notificationService: NotificationService, 
     val myGreen = Color(android.graphics.Color.parseColor("#5aff54"))
     val myYellow = Color(android.graphics.Color.parseColor("#fcf758"))
     val myRed = Color(android.graphics.Color.parseColor("#fa5852"))
-    val myBlue = Color(android.graphics.Color.parseColor("#3399ff"))
 
     var progressBarColor = myGreen
     if(task.percentageComplete() > 0.8 && task.percentageComplete() < 1)
@@ -224,7 +219,6 @@ fun TaskRow(model: TaskFlowViewModel, notificationService: NotificationService, 
             color = MaterialTheme.colorScheme.onPrimary,
             fontWeight = FontWeight.Bold,
         )
-        //notificationService.showBasicNotification(task.formatTimeRemaining())
     }
 
     val delete = SwipeAction(
@@ -379,7 +373,6 @@ fun NewTaskRow(model: TaskFlowViewModel, listState: LazyListState, modifier: Mod
 @Preview(showBackground = true)
 @Composable
 fun TaskFlowViewPreview() {
-//    //TODO this will break now since were not supplying the dao
 //    val viewModel = viewModel<TaskFlowViewModel>()
 //    viewModel.tasks.add(TaskState("test test test test test test test test test test test test test", "2").setRemainingDurationForTesting(1000*60*1))
 //    viewModel.tasks.add(TaskState("test test test test test test test test test test test test test", "3"))
