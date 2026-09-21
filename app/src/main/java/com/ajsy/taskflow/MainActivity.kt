@@ -22,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -108,7 +107,7 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                     TaskRow(model = model, task = task, listState = listState)
                 }
                 item(key = "cursor") {
-                    CursorRow(model = model, listState = listState)
+                    CursorRow(model = model)
                 }
                 items(model.tasks.drop(cursorPos), key = { it.id }) { task ->
                     TaskRow(model = model, task = task, listState = listState)

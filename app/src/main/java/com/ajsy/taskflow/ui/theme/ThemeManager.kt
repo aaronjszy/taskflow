@@ -18,7 +18,7 @@ class ThemeManager(context: Context) {
         val name = prefs.getString("selected_theme", "LIGHT") ?: "LIGHT"
         return try {
             AppTheme.valueOf(name)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             AppTheme.LIGHT
         }
     }
@@ -27,10 +27,6 @@ class ThemeManager(context: Context) {
         currentTheme = theme
         prefs.edit().putString("selected_theme", theme.name).apply()
     }
-
-    fun isDarkTheme() = currentTheme == AppTheme.DARK
-
-    fun isEInkTheme() = currentTheme == AppTheme.E_INK
 }
 
 val LocalThemeManager: ProvidableCompositionLocal<ThemeManager> = staticCompositionLocalOf {

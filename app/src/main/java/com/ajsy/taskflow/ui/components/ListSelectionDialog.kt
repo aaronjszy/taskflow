@@ -107,7 +107,6 @@ fun ListSelectionDialog(
                             ListSelectionRow(
                                 savedList = savedList,
                                 isSelected = selectedListId == savedList.id,
-                                showInputField = showInputField,
                                 showActionButtons = showActionButtons,
                                 onSelect = {
                                     selectedListId = savedList.id
@@ -130,7 +129,6 @@ fun ListSelectionDialog(
 private fun ListSelectionRow(
     savedList: SavedTaskList,
     isSelected: Boolean,
-    showInputField: Boolean,
     showActionButtons: Boolean,
     onSelect: () -> Unit,
     onLoad: () -> Unit,

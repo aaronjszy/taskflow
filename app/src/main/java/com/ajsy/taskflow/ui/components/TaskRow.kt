@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -179,7 +180,7 @@ fun TaskRow(
         onSwipe = {
             model.toggleTimer(task)
             model.viewModelScope.launch {
-                delay(50)
+                delay(50.milliseconds)
                 listState.scrollToItem(0)
             }
         },
@@ -300,17 +301,12 @@ fun TaskRow(
                     ) {
                         if (fixedTimeDiff != null && (isLate || isVeryEarly)) {
                             val label = "scheduled $fixedTimeDiff"
-                            val labelColor = when {
-                                isLate -> darkErrorColor
-                                isVeryEarly -> darkSuccessColor
-                                else -> MaterialTheme.colorScheme.onSurface
-                            }
-                            val labelWeight = if (isLate || isVeryEarly) FontWeight.Bold else FontWeight.Normal
+                            val labelColor = if (isLate) darkErrorColor else darkSuccessColor
                             Text(
                                 text = label,
                                 color = labelColor,
                                 fontSize = 12.sp,
-                                fontWeight = labelWeight,
+                                fontWeight = FontWeight.Bold,
                             )
                         }
                     }

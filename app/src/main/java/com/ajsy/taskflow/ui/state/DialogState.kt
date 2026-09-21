@@ -24,6 +24,5 @@ data class DialogState(
     fun openDeleteConfirmDialog(list: SavedTaskList) = copy(showDeleteConfirmDialog = true, listToDelete = list)
 
     fun updateShowMenu(show: Boolean) = copy(showMenu = show)
-    fun updateListToDelete(list: SavedTaskList?) = copy(listToDelete = list)
     fun updateListNameInput(input: String) = copy(listNameInput = input)
 }

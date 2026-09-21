@@ -129,8 +129,9 @@ val LocalThemeConfig: ProvidableCompositionLocal<ThemeConfig> = staticCompositio
 @Composable
 fun rememberThemeConfig(): ThemeConfig = LocalThemeConfig.current
 
+@androidx.annotation.RequiresApi(Build.VERSION_CODES.S)
 @Composable
-private fun DynamicThemeConfig(isDark: Boolean): ThemeConfig {
+private fun dynamicThemeConfig(isDark: Boolean): ThemeConfig {
     val context = LocalContext.current
     val dynamicScheme = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     return ThemeConfig(
@@ -139,13 +140,13 @@ private fun DynamicThemeConfig(isDark: Boolean): ThemeConfig {
             secondary = dynamicScheme.secondary,
             tertiary = dynamicScheme.tertiary,
         ),
-        custom = LightThemeConfig.custom,
+        custom = if (isDark) DarkThemeConfig.custom else LightThemeConfig.custom,
     )
 }
 
 @Composable
 fun AppTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
@@ -153,22 +154,25 @@ fun AppTheme(
     val themeManager = androidx.compose.runtime.remember { ThemeManager(context) }
 
     androidx.compose.runtime.CompositionLocalProvider(LocalThemeManager provides themeManager) {
-        AppThemeContent(themeManager, darkTheme, dynamicColor, content)
+        AppThemeContent(themeManager, dynamicColor, content)
     }
 }
 
 @Composable
 private fun AppThemeContent(
     themeManager: ThemeManager,
-    darkTheme: Boolean,
     dynamicColor: Boolean,
     content: @Composable () -> Unit,
 ) {
     val themeConfig = when (themeManager.currentTheme) {
         AppTheme.E_INK -> EInkThemeConfig
-        AppTheme.DARK -> DarkThemeConfig
-        AppTheme.LIGHT -> if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            DynamicThemeConfig(isDark = false)
+        AppTheme.DARK -> if (dynamicColor && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)) {
+            dynamicThemeConfig(isDark = true)
+        } else {
+            DarkThemeConfig
+        }
+        AppTheme.LIGHT -> if (dynamicColor && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)) {
+            dynamicThemeConfig(isDark = false)
         } else {
             LightThemeConfig
         }

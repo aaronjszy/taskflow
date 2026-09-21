@@ -8,8 +8,4 @@ import java.util.UUID
 class CursorViewModel {
     var id: String = UUID.randomUUID().toString()
     var position: Int by mutableStateOf(0)
-    var taskTimerRunning: Boolean = false
-
-    fun stop() {}
-    fun cancelTimerAsync() {}
 }
