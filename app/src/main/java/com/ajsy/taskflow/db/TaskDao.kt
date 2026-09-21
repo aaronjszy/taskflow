@@ -18,11 +18,23 @@ interface TaskDao {
     @Delete
     suspend fun deleteTask(task: Task)
 
-    @Query("SELECT * from task ORDER BY position")
+    @Query("SELECT * FROM Task ORDER BY position")
     suspend fun getTasks(): List<Task>
 
-    @Query("UPDATE task SET position = :newPosition WHERE id = :taskId")
+    @Query("DELETE FROM Task")
+    suspend fun deleteAllTasks()
+
+    @Query("UPDATE Task SET position = :newPosition WHERE id = :taskId")
     suspend fun updateTaskPosition(taskId: String, newPosition: Int)
+
+    @Query("UPDATE Task SET remainingDurationAtResume = :newRemainingDurationAtResume, lastResumedTime = :newLastResumedTime WHERE id = :taskId")
+    suspend fun updateTaskTimerProgress(taskId: String, newRemainingDurationAtResume: Long, newLastResumedTime: Long)
+
+    @Query("UPDATE Task SET taskTimerRunning = :newTaskTimerRunning WHERE id = :taskId")
+    suspend fun updateTaskTimerRunningState(taskId: String, newTaskTimerRunning: Boolean)
+
+    @Query("UPDATE Task SET fixedStartTime = :fixedStartTime WHERE id = :taskId")
+    suspend fun updateTaskFixedStartTime(taskId: String, fixedStartTime: Long?)
 
     @Transaction
     suspend fun updateTaskPositions(tasks: List<Task>) {
@@ -32,9 +44,8 @@ interface TaskDao {
     }
 
     @Transaction
-    suspend fun updateTasks(tasks: List<Task>) {
-        tasks.forEach {
-            updateTask(it)
-        }
+    suspend fun replaceAllTasks(tasks: List<Task>) {
+        deleteAllTasks()
+        tasks.forEach { upsertTask(it) }
     }
 }

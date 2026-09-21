@@ -11,43 +11,69 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-data class TaskViewModel(
-    var name: String,
-    var durationStr: String,
-    var taskRepository: TaskRepository,
-    var viewModelScope: CoroutineScope
+class TaskViewModel(
+    name: String,
+    durationStr: String,
+    private val taskRepository: TaskRepository,
+    private val viewModelScope: CoroutineScope
 ) {
     var id: String = UUID.randomUUID().toString()
     var position: Int = 0
-    var originalDuration: Long = stringMinutesToLongMillis(durationStr)
-    var remainingDuration: Long by mutableStateOf(originalDuration)
-    var taskTimerTickTime: Long = 0
-    var taskTimerRunning: Boolean  by mutableStateOf(false)
-//    var startTime: LocalDateTime by mutableStateOf(LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()))
-//    var endTime: LocalDateTime by mutableStateOf(LocalDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()))
+
+    var name: String by mutableStateOf(name)
+    var durationStr: String by mutableStateOf(durationStr)
+    var originalDuration: Long by mutableStateOf(stringMinutesToLongMillis(durationStr))
+    var taskTimerRunning: Boolean by mutableStateOf(false)
+    var hasTimedOut: Boolean by mutableStateOf(false)
+    var fixedStartTime: Long? by mutableStateOf(null)
+    var bufferSeconds: Long = 0L
+
+    // Snapshot of remaining time at last resume/pause — persisted to DB
+    var remainingDurationAtResume: Long = stringMinutesToLongMillis(durationStr)
+    // Epoch millis when timer was last resumed — persisted to DB
+    var lastResumedTime: Long = 0L
+
+    // Live display value updated by the tick loop
+    private var _timerDisplayTime: Long by mutableStateOf(stringMinutesToLongMillis(durationStr))
+
+    val displayRemainingDuration: Long
+        get() = if (bufferSeconds > 0 && _timerDisplayTime > originalDuration) {
+            originalDuration + (bufferSeconds * 1000L)
+        } else {
+            _timerDisplayTime
+        }
 
     val updateMutex = Mutex()
+    private var timerJob: Job? = null
 
-    private var timer: Job? = null
-
-//    fun setTimeRange(timeRange: TaskFlowViewModel.TimeRange) {
-//        this.startTime = timeRange.startTime
-//        this.endTime = timeRange.endTime
-//    }
+    data class Progress(val bufferProgress: Float = 0f, val taskProgress: Float = 0f)
 
     fun start() {
-        timer = viewModelScope.launch {
+        timerJob = viewModelScope.launch {
             updateMutex.withLock {
-                taskTimerTickTime = System.currentTimeMillis()
                 taskTimerRunning = true
-                taskRepository.updateTask(this@TaskViewModel)
+                lastResumedTime = System.currentTimeMillis()
+                taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
             }
-
-            while(this.isActive) {
-                checkpointTickTime(viewModelScope)
+            while (isActive) {
                 delay(500L)
+                val elapsed = System.currentTimeMillis() - lastResumedTime
+                val current = remainingDurationAtResume - elapsed
+                _timerDisplayTime = current
+                if (current <= 0L && !hasTimedOut) {
+                    hasTimedOut = true
+                }
+                taskRepository.updateTaskTimerProgressDirect(
+                    id,
+                    remainingDurationAtResume,
+                    lastResumedTime
+                )
             }
         }
     }
@@ -55,71 +81,133 @@ data class TaskViewModel(
     fun stop() {
         viewModelScope.launch {
             updateMutex.withLock {
-                cancelTimer()
-
+                timerJob?.cancel()
+                timerJob = null
+                val elapsed = if (lastResumedTime > 0L) System.currentTimeMillis() - lastResumedTime else 0L
+                remainingDurationAtResume = (remainingDurationAtResume - elapsed).coerceAtLeast(0L)
+                lastResumedTime = 0L
                 taskTimerRunning = false
-                taskRepository.updateTask(this@TaskViewModel)
+                hasTimedOut = false
+                taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
+                taskRepository.updateTaskTimerProgressDirect(id, remainingDurationAtResume, lastResumedTime)
             }
         }
     }
 
-    fun cancelTimer() {
-        timer?.cancel()
-        timer = null
-    }
-
-    fun checkpointTickTime(viewModelScope: CoroutineScope) {
+    fun cancelTimerAsync() {
         viewModelScope.launch {
             updateMutex.withLock {
-                remainingDuration -= (System.currentTimeMillis() - taskTimerTickTime)
-                taskTimerTickTime = System.currentTimeMillis()
-                taskRepository.updateTask(this@TaskViewModel)
+                timerJob?.cancel()
+                timerJob = null
+                taskTimerRunning = false
+                hasTimedOut = false
+                remainingDurationAtResume = originalDuration
+                lastResumedTime = 0L
+                _timerDisplayTime = 0L
+                taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
             }
         }
     }
 
-    private fun stringMinutesToLongMillis(durationStr :String): Long {
-        return try {
-            durationStr.toLong()*60*1000
-        } catch (e: NumberFormatException) {
-            0
+    fun cleanup() {
+        viewModelScope.launch {
+            timerJob?.cancel()
+            timerJob = null
+            taskTimerRunning = false
+            hasTimedOut = false
+            _timerDisplayTime = 0L
         }
     }
 
-    fun percentageComplete(): Float {
-        var percentageComplete = 1f - (remainingDuration.toFloat() / originalDuration.toFloat())
-        if(percentageComplete > 1) {
-            percentageComplete = 1f
+    fun resetTimeoutFlag() {
+        hasTimedOut = false
+    }
+
+    internal fun updateTimerDisplayTime(time: Long) {
+        _timerDisplayTime = time
+    }
+
+    fun updateBufferTime(priorEndTime: LocalDateTime) {
+        val fst = fixedStartTime
+        if (fst != null) {
+            val fixedDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(fst), ZoneId.systemDefault())
+            bufferSeconds = ChronoUnit.SECONDS.between(priorEndTime, fixedDateTime)
+        } else {
+            bufferSeconds = 0L
         }
-        return percentageComplete
+    }
+
+    fun calculateProgress(): Progress {
+        return if (displayRemainingDuration > originalDuration) {
+            val bufferTotal = bufferSeconds * 1000L
+            val bufferRemaining = displayRemainingDuration - originalDuration
+            Progress(bufferProgress = 1f - (bufferRemaining.toFloat() / bufferTotal.toFloat()))
+        } else {
+            val taskProgress = (1f - (displayRemainingDuration.toFloat() / originalDuration.toFloat())).coerceAtMost(1f)
+            Progress(taskProgress = taskProgress)
+        }
     }
 
     fun formatTimeRemaining(): String {
-        val seconds = (this.remainingDuration / 1000).toInt()
-
-        val sign = if (seconds < 0) "-" else ""
-        val absSeconds = kotlin.math.abs(seconds)
-
-        val minutes = absSeconds / 60
-        val remainingSeconds = absSeconds % 60
-
-        return "$sign$minutes:${String.format("%02d", remainingSeconds)}"
+        val seconds = (displayRemainingDuration / 1000L).toInt()
+        if (bufferSeconds > 0) {
+            val bufferRemaining = seconds - (originalDuration / 1000L).toInt()
+            return formatSeconds(bufferRemaining) + " + " + formatSeconds((originalDuration / 1000L).toInt())
+        }
+        return formatSeconds(seconds)
     }
 
-    suspend fun setPositionAsync(i: Int) {
-        updateMutex.withLock {
-            position = i
-            taskRepository.updateTask(this@TaskViewModel)
+    fun fixedTimeDiffSeconds(comparisonDateTime: LocalDateTime): Long? {
+        val fst = fixedStartTime ?: return null
+        val fixedDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(fst), ZoneId.systemDefault())
+        return ChronoUnit.SECONDS.between(comparisonDateTime, fixedDateTime)
+    }
+
+    fun formatFixedTimeDiff(comparisonDateTime: LocalDateTime): String? {
+        val diffSeconds = fixedTimeDiffSeconds(comparisonDateTime) ?: return null
+        val absDiffSeconds = Math.abs(diffSeconds)
+        val hours = absDiffSeconds / 3600
+        val minutes = (absDiffSeconds % 3600) / 60
+        val seconds = absDiffSeconds % 60
+        return when {
+            diffSeconds < 0 -> "${hours}h ${minutes}m late"
+            hours > 0 -> "in ${hours}h ${minutes}m"
+            minutes > 0 -> "in ${minutes}m"
+            else -> "in ${seconds}s"
         }
     }
 
-//    fun setPosition(i: Int) {
-//        position = i
-//    }
+    fun getDisplayName(): String {
+        val fst = fixedStartTime ?: return name
+        val scheduledDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(fst), ZoneId.systemDefault())
+        val hour = scheduledDateTime.hour
+        val minute = scheduledDateTime.minute
+        val amPm = if (hour >= 12) "p" else "a"
+        val hour12 = if (hour % 12 != 0) hour % 12 else 12
+        val formattedTime = "$hour12:${String.format("%02d", minute)}$amPm"
+        return "$formattedTime $name"
+    }
 
-    suspend fun sync() {
-        updateMutex.withLock {
-            taskRepository.updateTask(this@TaskViewModel)
+    fun serializeForTaskGroup(): String = "$name $durationStr"
+
+    fun stringMinutesToLongMillis(durationStr: String): Long {
+        return try {
+            durationStr.toLong() * 60L * 1000L
+        } catch (e: NumberFormatException) {
+            0L
+        }
+    }
+
+    private fun formatSeconds(seconds: Int): String {
+        val sign = if (seconds < 0) "-" else ""
+        val absSeconds = Math.abs(seconds)
+        val hours = (absSeconds / 60) / 60
+        val minutes = (absSeconds / 60) - (hours * 60)
+        val secs = absSeconds % 60
+        return if (hours == 0) {
+            "$sign$minutes:${String.format("%02d", secs)}"
+        } else {
+            "$sign$hours:${String.format("%02d", minutes)}:${String.format("%02d", secs)}"
         }
     }
 }
