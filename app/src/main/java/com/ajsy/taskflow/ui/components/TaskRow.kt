@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -85,11 +86,27 @@ private fun TimeDisplay(
     isRunning: Boolean,
     accentColor: Color,
 ) {
-    val color = if (isRunning) accentColor else textStyle.color
-    Text(
-        text = timeStr,
-        style = textStyle.copy(color = color),
-    )
+    if (timeStr.contains(" + ")) {
+        val parts = timeStr.split(" + ")
+        val bufferTime = parts[0]
+        val taskTime = parts[1]
+        Row(
+            modifier = if (isRunning) Modifier.fillMaxWidth() else Modifier,
+            horizontalArrangement = if (isRunning) Arrangement.Center else Arrangement.Start,
+        ) {
+            Text(text = bufferTime, style = textStyle.copy(color = accentColor))
+            Text(text = " + ", style = textStyle.copy(color = MaterialTheme.colorScheme.onSurface))
+            Text(text = taskTime, style = textStyle.copy(color = MaterialTheme.colorScheme.onSurface))
+        }
+    } else {
+        Text(
+            text = timeStr,
+            modifier = if (isRunning) Modifier.fillMaxWidth() else Modifier,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = if (isRunning) TextAlign.Center else null,
+            style = textStyle,
+        )
+    }
 }
 
 @Composable
