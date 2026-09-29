@@ -21,7 +21,7 @@ class TaskRepository(
                 remainingDurationAtResume = task.remainingDurationAtResume,
                 lastResumedTime = 0L,
                 taskTimerRunning = task.taskTimerRunning,
-                fixedStartTime = null
+                fixedStartTime = task.fixedStartTime
             )
         }
 

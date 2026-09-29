@@ -196,6 +196,8 @@ class TaskFlowViewModel(
             _tasks.filter { it.taskTimerRunning && it.id != task.id }.forEach { it.stop() }
 
             moveTaskToTop(task, noSync = true, noStopTimer = true)
+            // Calculate bufferSeconds before starting so the timer display includes buffer
+            updateTaskPositions()
             task.start()
 
             taskListMutex.withLock {
@@ -207,7 +209,6 @@ class TaskFlowViewModel(
                 }
                 updateCursorPositionState()
             }
-            updateTaskPositions()
         }
     }
 

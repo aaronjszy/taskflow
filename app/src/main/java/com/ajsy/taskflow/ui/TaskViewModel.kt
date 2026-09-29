@@ -41,11 +41,7 @@ class TaskViewModel(
     private var _timerDisplayTime: Long by mutableStateOf(stringMinutesToLongMillis(durationStr))
 
     val displayRemainingDuration: Long
-        get() = if (bufferSeconds > 0 && _timerDisplayTime > originalDuration) {
-            originalDuration + (bufferSeconds * 1000L)
-        } else {
-            _timerDisplayTime
-        }
+        get() = _timerDisplayTime
 
     private var timerJob: Job? = null
 
@@ -58,7 +54,11 @@ class TaskViewModel(
         if (lastResumedTime <= 0L) {
             lastResumedTime = System.currentTimeMillis()
         }
-        _timerDisplayTime = remainingDurationAtResume
+        _timerDisplayTime = if (bufferSeconds > 0) {
+            bufferSeconds * 1000L + remainingDurationAtResume
+        } else {
+            remainingDurationAtResume
+        }
 
         viewModelScope.launch {
             taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
@@ -69,7 +69,7 @@ class TaskViewModel(
                 delay(500L)
                 if (!isActive || !taskTimerRunning || lastResumedTime <= 0L) break
                 val elapsed = System.currentTimeMillis() - lastResumedTime
-                val current = remainingDurationAtResume - elapsed
+                val current = bufferSeconds * 1000L + remainingDurationAtResume - elapsed
                 _timerDisplayTime = current
                 if (current <= 0L && !hasTimedOut) {
                     hasTimedOut = true
@@ -88,7 +88,8 @@ class TaskViewModel(
         timerJob = null
         if (lastResumedTime > 0L) {
             val elapsed = System.currentTimeMillis() - lastResumedTime
-            remainingDurationAtResume = (remainingDurationAtResume - elapsed).coerceAtLeast(0L)
+            val totalRemaining = (bufferSeconds * 1000L + remainingDurationAtResume - elapsed).coerceAtLeast(0L)
+            remainingDurationAtResume = totalRemaining.coerceAtMost(originalDuration)
         }
         lastResumedTime = 0L
         taskTimerRunning = false
@@ -159,9 +160,10 @@ class TaskViewModel(
 
     fun formatTimeRemaining(): String {
         val seconds = (displayRemainingDuration / 1000L).toInt()
-        if (bufferSeconds > 0) {
-            val bufferRemaining = seconds - (originalDuration / 1000L).toInt()
-            return formatSeconds(bufferRemaining) + " + " + formatSeconds((originalDuration / 1000L).toInt())
+        val originalSeconds = (originalDuration / 1000L).toInt()
+        if (bufferSeconds > 0 && seconds > originalSeconds) {
+            val bufferRemaining = seconds - originalSeconds
+            return formatSeconds(bufferRemaining) + " + " + formatSeconds(originalSeconds)
         }
         return formatSeconds(seconds)
     }
