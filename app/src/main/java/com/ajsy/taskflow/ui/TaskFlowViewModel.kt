@@ -700,6 +700,7 @@ class TaskFlowViewModel(
                         if (remainingTime >= task.originalDuration) {
                             (slot.tasks as MutableList).add(task)
                             assigned = true
+                            break
                         }
                     }
                     if (!assigned) {
@@ -717,7 +718,7 @@ class TaskFlowViewModel(
                 }
                 newTaskOrder.addAll(assignedSlots.last().tasks)
 
-                _tasks.forEach { it.cleanup() }
+                _tasks.filter { it.taskTimerRunning }.forEach { it.stop() }
                 _tasks.clear()
                 _tasks.addAll(newTaskOrder)
                 updateTaskPositionsAsync()

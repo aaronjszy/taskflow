@@ -161,9 +161,15 @@ class TaskViewModel(
     fun formatTimeRemaining(): String {
         val seconds = (displayRemainingDuration / 1000L).toInt()
         val originalSeconds = (originalDuration / 1000L).toInt()
-        if (bufferSeconds > 0 && seconds > originalSeconds) {
-            val bufferRemaining = seconds - originalSeconds
-            return formatSeconds(bufferRemaining) + " + " + formatSeconds(originalSeconds)
+        if (bufferSeconds > 0) {
+            when {
+                seconds > originalSeconds ->
+                    // Running in buffer phase — live countdown
+                    return formatSeconds(seconds - originalSeconds) + " + " + formatSeconds(originalSeconds)
+                !taskTimerRunning && remainingDurationAtResume >= originalDuration ->
+                    // Not yet started — show full buffer + task statically
+                    return formatSeconds(bufferSeconds.toInt()) + " + " + formatSeconds(originalSeconds)
+            }
         }
         return formatSeconds(seconds)
     }

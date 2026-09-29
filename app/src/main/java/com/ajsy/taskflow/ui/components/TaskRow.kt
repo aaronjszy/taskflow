@@ -120,8 +120,11 @@ fun TaskRow(
     var showMoveDialog by remember { mutableStateOf(false) }
 
     val timeRange = model.calcTimeRange(task)
-    val fixedTimeDiff = task.formatFixedTimeDiff(timeRange.startTime)
-    val diffSeconds = task.fixedTimeDiffSeconds(timeRange.startTime)
+    // Use natural start time (before fixed-time anchor) so isVeryEarly reflects the
+    // actual gap between sequence position and fixed start, not fixedStart vs itself.
+    val naturalStartTime = timeRange.startTime.minusSeconds(task.bufferSeconds)
+    val fixedTimeDiff = task.formatFixedTimeDiff(naturalStartTime)
+    val diffSeconds = task.fixedTimeDiffSeconds(naturalStartTime)
     val isLate = diffSeconds != null && diffSeconds < -60 && !task.taskTimerRunning
     val isVeryEarly = diffSeconds != null && diffSeconds > 900
 
