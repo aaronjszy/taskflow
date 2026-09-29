@@ -9,8 +9,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -49,20 +47,27 @@ class TaskViewModel(
             _timerDisplayTime
         }
 
-    val updateMutex = Mutex()
     private var timerJob: Job? = null
 
     data class Progress(val bufferProgress: Float = 0f, val taskProgress: Float = 0f)
 
     fun start() {
+        timerJob?.cancel()
+        taskTimerRunning = true
+        hasTimedOut = false
+        if (lastResumedTime <= 0L) {
+            lastResumedTime = System.currentTimeMillis()
+        }
+        _timerDisplayTime = remainingDurationAtResume
+
+        viewModelScope.launch {
+            taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
+        }
+
         timerJob = viewModelScope.launch {
-            updateMutex.withLock {
-                taskTimerRunning = true
-                lastResumedTime = System.currentTimeMillis()
-                taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
-            }
-            while (isActive) {
+            while (isActive && taskTimerRunning && lastResumedTime > 0L) {
                 delay(500L)
+                if (!isActive || !taskTimerRunning || lastResumedTime <= 0L) break
                 val elapsed = System.currentTimeMillis() - lastResumedTime
                 val current = remainingDurationAtResume - elapsed
                 _timerDisplayTime = current
@@ -79,44 +84,48 @@ class TaskViewModel(
     }
 
     fun stop() {
+        timerJob?.cancel()
+        timerJob = null
+        if (lastResumedTime > 0L) {
+            val elapsed = System.currentTimeMillis() - lastResumedTime
+            remainingDurationAtResume = (remainingDurationAtResume - elapsed).coerceAtLeast(0L)
+        }
+        lastResumedTime = 0L
+        taskTimerRunning = false
+        hasTimedOut = false
+        _timerDisplayTime = remainingDurationAtResume
+
         viewModelScope.launch {
-            updateMutex.withLock {
-                timerJob?.cancel()
-                timerJob = null
-                val elapsed = if (lastResumedTime > 0L) System.currentTimeMillis() - lastResumedTime else 0L
-                remainingDurationAtResume = (remainingDurationAtResume - elapsed).coerceAtLeast(0L)
-                lastResumedTime = 0L
-                taskTimerRunning = false
-                hasTimedOut = false
-                taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
-                taskRepository.updateTaskTimerProgressDirect(id, remainingDurationAtResume, lastResumedTime)
-            }
+            taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
+            taskRepository.updateTaskTimerProgressDirect(id, remainingDurationAtResume, lastResumedTime)
+        }
+    }
+
+    fun resetTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        taskTimerRunning = false
+        hasTimedOut = false
+        remainingDurationAtResume = originalDuration
+        lastResumedTime = 0L
+        _timerDisplayTime = originalDuration
+
+        viewModelScope.launch {
+            taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
+            taskRepository.updateTaskTimerProgressDirect(id, remainingDurationAtResume, lastResumedTime)
         }
     }
 
     fun cancelTimerAsync() {
-        viewModelScope.launch {
-            updateMutex.withLock {
-                timerJob?.cancel()
-                timerJob = null
-                taskTimerRunning = false
-                hasTimedOut = false
-                remainingDurationAtResume = originalDuration
-                lastResumedTime = 0L
-                _timerDisplayTime = 0L
-                taskRepository.updateTaskTimerRunningState(this@TaskViewModel)
-            }
-        }
+        resetTimer()
     }
 
     fun cleanup() {
-        viewModelScope.launch {
-            timerJob?.cancel()
-            timerJob = null
-            taskTimerRunning = false
-            hasTimedOut = false
-            _timerDisplayTime = 0L
-        }
+        timerJob?.cancel()
+        timerJob = null
+        taskTimerRunning = false
+        hasTimedOut = false
+        _timerDisplayTime = 0L
     }
 
     fun resetTimeoutFlag() {

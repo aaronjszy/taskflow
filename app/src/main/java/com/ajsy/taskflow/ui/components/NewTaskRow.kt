@@ -6,7 +6,6 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -145,17 +144,18 @@ fun CursorRow(
     val arrowText = if (addItemMode == "above_cursor") "▲" else "▼"
 
     Box(
+        contentAlignment = Alignment.Center,
         modifier = modifier
             .fillMaxWidth()
-            .height(20.dp)
+            .height(12.dp)
             .drawBehind {
                 drawRoundRect(
                     color = cursorColor,
                     size = Size(size.width, size.height),
-                    cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx()),
+                    cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
                 )
             }
-            .border(1.dp, Color.White, RoundedCornerShape(5.dp))
+            .border(1.dp, Color.White, RoundedCornerShape(3.dp))
             .clickable { model.switchAddItemMode() }
             .pointerInput(Unit) {
                 detectDragGesturesAfterLongPress(
@@ -178,11 +178,9 @@ fun CursorRow(
         Text(
             text = arrowText,
             color = Color.Black,
-            fontSize = 12.sp,
+            fontSize = 9.sp,
+            lineHeight = 9.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-6).dp),
         )
     }
 }

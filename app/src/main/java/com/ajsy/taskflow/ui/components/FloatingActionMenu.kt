@@ -15,7 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.PlayArrow
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,7 +37,6 @@ fun FloatingActionMenu(
     onUiStateChange: (DialogState) -> Unit,
 ) {
     val clipboardManager = LocalClipboardManager.current
-    val soundEnabled by model.soundEnabled.collectAsState()
     var showClearConfirm by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -53,7 +52,7 @@ fun FloatingActionMenu(
                 },
                 modifier = Modifier.size(56.dp),
             ) {
-                Icon(Icons.TwoTone.PlayArrow, contentDescription = "Menu")
+                Icon(Icons.Default.Menu, contentDescription = "Menu")
             }
 
             DropdownMenu(
@@ -88,13 +87,6 @@ fun FloatingActionMenu(
                         onUiStateChange(uiState.updateShowMenu(false))
                         val text = model.formatTaskListForClipboard()
                         clipboardManager.setText(AnnotatedString(text))
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(if (soundEnabled) "Sound: On" else "Sound: Off") },
-                    onClick = {
-                        onUiStateChange(uiState.updateShowMenu(false))
-                        model.toggleSound()
                     },
                 )
                 DropdownMenuItem(

@@ -14,6 +14,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.twotone.Add
+import androidx.compose.material.icons.twotone.Delete
+import androidx.compose.material.icons.twotone.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -155,9 +161,15 @@ private fun ListSelectionRow(
             )
         }
         if (showActionButtons) {
-            TextButton(onClick = onLoad) { Text("Load") }
-            TextButton(onClick = onAppend) { Text("Append") }
-            TextButton(onClick = onDelete) { Text("Delete") }
+            IconButton(onClick = onLoad) {
+                Icon(Icons.TwoTone.PlayArrow, contentDescription = "Load")
+            }
+            IconButton(onClick = onAppend) {
+                Icon(Icons.TwoTone.Add, contentDescription = "Append")
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.TwoTone.Delete, contentDescription = "Delete")
+            }
         }
     }
 }

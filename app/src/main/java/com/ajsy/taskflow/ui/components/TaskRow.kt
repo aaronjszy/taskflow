@@ -27,13 +27,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -55,6 +55,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun KeepScreenOn() {
@@ -337,11 +338,7 @@ fun TaskRow(
                             text = { Text("+5 min") },
                             onClick = {
                                 showMenu = false
-                                val addMs = 300_000L
-                                task.originalDuration += addMs
-                                task.updateTimerDisplayTime(task.displayRemainingDuration + addMs)
-                                task.durationStr = (task.originalDuration / 60_000L).toString()
-                                model.updateTaskAsync(task)
+                                model.addFiveMinutes(task)
                             },
                             modifier = Modifier.height(menuItemHeight),
                         )
@@ -382,6 +379,31 @@ fun TaskRow(
                 }
             }
         }
+    }
+
+    if (showMoveDialog) {
+        val savedLists by model.savedLists.collectAsState()
+        ListSelectionDialog(
+            title = "Move to List",
+            showInputField = true,
+            savedLists = savedLists,
+            onListSelected = { savedList ->
+                model.moveTaskToSavedList(task, savedList.id)
+                showMoveDialog = false
+            },
+            onSave = { listName, id ->
+                if (id != null) {
+                    model.moveTaskToSavedList(task, id)
+                } else if (listName.isNotBlank()) {
+                    model.viewModelScope.launch {
+                        val newId = model.createNewList(listName)
+                        model.moveTaskToSavedList(task, newId)
+                    }
+                }
+                showMoveDialog = false
+            },
+            onDismiss = { showMoveDialog = false },
+        )
     }
 }
 

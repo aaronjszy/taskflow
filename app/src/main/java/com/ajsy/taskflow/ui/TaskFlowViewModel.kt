@@ -50,9 +50,6 @@ class TaskFlowViewModel(
     private val _savedLists = MutableStateFlow<List<SavedTaskList>>(emptyList())
     val savedLists: StateFlow<List<SavedTaskList>> = _savedLists.asStateFlow()
 
-    private val _soundEnabled = MutableStateFlow(false)
-    val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
-
     private val _scrollToTopTrigger = MutableStateFlow(0)
     val scrollToTopTrigger: StateFlow<Int> = _scrollToTopTrigger.asStateFlow()
 
@@ -72,9 +69,7 @@ class TaskFlowViewModel(
         val tasks: List<TaskViewModel>
     )
 
-    fun toggleSound() {
-        _soundEnabled.value = !_soundEnabled.value
-    }
+
 
     fun initList() {
         viewModelScope.launch {
@@ -217,38 +212,23 @@ class TaskFlowViewModel(
     }
 
     fun resetTaskTimer(task: TaskViewModel) {
-        val wasRunning = task.taskTimerRunning
-        task.hasTimedOut = false
-        if (wasRunning) {
-            viewModelScope.launch {
-                task.stop()
-                task.remainingDurationAtResume = task.originalDuration
-                task.updateTimerDisplayTime(task.originalDuration)
-                task.start()
-            }
-        } else {
-            task.remainingDurationAtResume = task.originalDuration
-            task.updateTimerDisplayTime(task.originalDuration)
-            viewModelScope.launch {
-                taskRepository.updateTaskTimerRunningState(task)
-                taskRepository.updateTaskTimerProgressDirect(task.id, task.remainingDurationAtResume, task.lastResumedTime)
-            }
-        }
+        task.resetTimer()
+    }
+
+    fun addFiveMinutes(task: TaskViewModel) {
+        val addMs = 300_000L
+        task.originalDuration += addMs
+        task.remainingDurationAtResume += addMs
+        task.updateTimerDisplayTime(task.displayRemainingDuration + addMs)
+        task.durationStr = (task.originalDuration / 60_000L).toString()
+        updateTaskAsync(task)
     }
 
     fun resetAllTimers() {
         viewModelScope.launch {
             taskListMutex.withLock {
-                val runningTasks = _tasks.filter { it.taskTimerRunning }
-                runningTasks.forEach { it.stop() }
                 _tasks.forEach { task ->
-                    task.hasTimedOut = false
-                    task.remainingDurationAtResume = task.originalDuration
-                    task.lastResumedTime = 0L
-                    task.taskTimerRunning = false
-                    task.updateTimerDisplayTime(task.originalDuration)
-                    taskRepository.updateTaskTimerRunningState(task)
-                    taskRepository.updateTaskTimerProgressDirect(task.id, task.remainingDurationAtResume, task.lastResumedTime)
+                    task.resetTimer()
                 }
             }
         }
