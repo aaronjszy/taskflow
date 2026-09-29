@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.unit.sp
+import java.time.format.DateTimeFormatter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -99,20 +102,41 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 10.dp)
         ) {
+            val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.weight(1f)
             ) {
                 val cursorPos = model.cursor.position.coerceIn(0, model.tasks.size)
-                items(model.tasks.take(cursorPos), key = { it.id }) { task ->
-                    TaskRow(model = model, task = task, listState = listState)
+                model.tasks.take(cursorPos).forEach { task ->
+                    item(key = task.id) {
+                        TaskRow(model = model, task = task, listState = listState)
+                    }
+                    item(key = task.id + "time") {
+                        Row {
+                            Text(
+                                text = timeFormatter.format(model.calcTimeRange(task).endTime),
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
                 }
                 item(key = "cursor") {
                     CursorRow(model = model)
                 }
-                items(model.tasks.drop(cursorPos), key = { it.id }) { task ->
-                    TaskRow(model = model, task = task, listState = listState)
+                model.tasks.drop(cursorPos).forEach { task ->
+                    item(key = task.id) {
+                        TaskRow(model = model, task = task, listState = listState)
+                    }
+                    item(key = task.id + "time") {
+                        Row {
+                            Text(
+                                text = timeFormatter.format(model.calcTimeRange(task).endTime),
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
                 }
             }
             NewTaskRow(model = model, listState = listState)
