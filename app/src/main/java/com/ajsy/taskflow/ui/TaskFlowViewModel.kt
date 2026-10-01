@@ -31,6 +31,8 @@ class TaskFlowViewModel(
     val CURSOR_BOTTOM = 1
     val CURSOR_CUSTOM = 2
 
+    private val FOLD_SEP = "§"
+
     private val _tasks: SnapshotStateList<TaskViewModel> = mutableStateListOf()
     val tasks: List<TaskViewModel> get() = _tasks
 
@@ -489,13 +491,19 @@ class TaskFlowViewModel(
 
         val tasksInGroup = mutableListOf<TaskViewModel>()
         var insideTaskGroup = false
+        var depth = 1
         for (task in _tasks) {
             if (insideTaskGroup) {
-                headerTask.name = headerTask.name + "#" + task.serializeForTaskGroup()
+                headerTask.name = headerTask.name + FOLD_SEP + task.serializeForFold()
                 headerTask.originalDuration += task.originalDuration
                 headerTask.updateTimerDisplayTime(headerTask.originalDuration)
                 tasksInGroup.add(task)
-                if (task.name.startsWith("<<<")) break
+                if (task.name.startsWith(">>>")) {
+                    depth++
+                } else if (task.name.startsWith("<<<")) {
+                    depth--
+                    if (depth == 0) break
+                }
             } else if (task.id == headerTask.id) {
                 insideTaskGroup = true
             }
@@ -509,8 +517,11 @@ class TaskFlowViewModel(
         if (!headerTask.name.startsWith(">>>") || !headerTask.name.contains("[folded]")) return
 
         var insertionPosition = headerTask.position + 1
-        headerTask.name = headerTask.name.replace("[folded]", "")
-        val serializedTasksInGroup = headerTask.name.split("#")
+        headerTask.name = headerTask.name.removeSuffix("[folded]")
+        val serializedTasksInGroup = if (headerTask.name.contains(FOLD_SEP))
+            splitFoldEncoded(headerTask.name)
+        else
+            headerTask.name.split("#") // legacy format
         serializedTasksInGroup.forEachIndexed { index, serialized ->
             if (index != 0) {
                 val parsedSerializedTasks = parseMultilineString(serialized)
@@ -578,6 +589,27 @@ class TaskFlowViewModel(
         }
         val fixedStartTimeEpoch = fixedStartDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         return Pair(restOfName, fixedStartTimeEpoch)
+    }
+
+    private fun splitFoldEncoded(str: String): List<String> {
+        val result = mutableListOf<String>()
+        val current = StringBuilder()
+        var i = 0
+        while (i < str.length) {
+            if (str[i] == '§' && i + 1 < str.length && str[i + 1] == '§') {
+                current.append('§')
+                i += 2
+            } else if (str[i] == '§') {
+                result.add(current.toString())
+                current.clear()
+                i++
+            } else {
+                current.append(str[i])
+                i++
+            }
+        }
+        result.add(current.toString())
+        return result
     }
 
     private fun lineIncludesTime(line: String): Boolean {

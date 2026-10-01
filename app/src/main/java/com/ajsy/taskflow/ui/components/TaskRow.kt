@@ -255,7 +255,11 @@ fun TaskRow(
             .padding(5.dp)
             .clickable {
                 focusManager.clearFocus()
-                showMenu = true
+                if (task.name.startsWith(">>>")) {
+                    if (task.name.contains("[folded]")) model.unfold(task) else model.fold(task)
+                } else {
+                    showMenu = true
+                }
             }
             .pointerInput(Unit) {
                 detectDragGesturesAfterLongPress(

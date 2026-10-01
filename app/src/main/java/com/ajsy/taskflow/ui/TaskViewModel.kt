@@ -207,6 +207,11 @@ class TaskViewModel(
 
     fun serializeForTaskGroup(): String = "$name $durationStr"
 
+    fun serializeForFold(): String {
+        val escapedName = name.replace("§", "§§")
+        return "$escapedName $durationStr"
+    }
+
     fun stringMinutesToLongMillis(durationStr: String): Long {
         return try {
             durationStr.toLong() * 60L * 1000L
