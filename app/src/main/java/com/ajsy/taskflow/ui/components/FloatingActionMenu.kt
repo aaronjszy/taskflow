@@ -90,6 +90,17 @@ fun FloatingActionMenu(
                     },
                 )
                 DropdownMenuItem(
+                    text = { Text("Export All Templates") },
+                    onClick = {
+                        onUiStateChange(uiState.updateShowMenu(false))
+                        model.exportAllTemplatesForClipboard { text ->
+                            if (text.isNotEmpty()) {
+                                clipboardManager.setText(AnnotatedString(text))
+                            }
+                        }
+                    },
+                )
+                DropdownMenuItem(
                     text = { Text("Clear List") },
                     onClick = {
                         onUiStateChange(uiState.updateShowMenu(false))

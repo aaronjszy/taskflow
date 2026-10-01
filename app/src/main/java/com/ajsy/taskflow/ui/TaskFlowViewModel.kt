@@ -846,6 +846,29 @@ class TaskFlowViewModel(
         }
     }
 
+    fun exportAllTemplatesForClipboard(onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            val lists = taskRepository.getSavedLists()
+            if (lists.isEmpty()) {
+                onResult("")
+                return@launch
+            }
+            val builder = StringBuilder()
+            lists.forEachIndexed { index, list ->
+                if (index > 0) builder.append("\n\n")
+                builder.append("=== ").append(list.name).append(" ===")
+                val tasks = taskRepository.getTasksFromSavedList(list.id).sortedBy { it.position }
+                tasks.forEach { task ->
+                    builder.append("\n").append(task.name)
+                    if (task.durationStr.isNotEmpty()) {
+                        builder.append(" ").append(task.durationStr)
+                    }
+                }
+            }
+            onResult(builder.toString())
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         _tasks.forEach { it.cleanup() }
