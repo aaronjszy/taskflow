@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.Delete
@@ -117,6 +118,16 @@ fun TaskRow(
     modifier: Modifier = Modifier,
 ) {
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
+    if (task.name.startsWith(">>>")) {
+        GroupHeaderRow(model = model, task = task, modifier = modifier)
+        return
+    }
+    if (task.name.startsWith("<<<")) {
+        GroupTerminatorRow(task = task, modifier = modifier)
+        return
+    }
+
     var showMenu by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
 
@@ -438,6 +449,109 @@ fun TaskRow(
                 showMoveDialog = false
             },
             onDismiss = { showMoveDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun GroupHeaderRow(model: TaskFlowViewModel, task: TaskViewModel, modifier: Modifier = Modifier) {
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val themeConfig = rememberThemeConfig()
+    val isFolded = task.name.contains("[folded]")
+    val displayName = task.name
+        .removePrefix(">>>")
+        .removeSuffix("[folded]")
+        .trim()
+        .split("§").first()
+        .trim()
+    val chevron = if (isFolded) "▶" else "▼"
+
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    val haptic = LocalHapticFeedback.current
+
+    val delete = SwipeAction(
+        onSwipe = { focusManager.clearFocus(); model.deleteGroupAsync(task) },
+        icon = rememberVectorPainter(Icons.TwoTone.Delete),
+        background = Color.Red,
+    )
+
+    SwipeableActionsBox(
+        modifier = modifier,
+        startActions = listOf(delete),
+        swipeThreshold = 40.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp))
+                .border(1.dp, themeConfig.custom.border, RoundedCornerShape(6.dp))
+                .clickable {
+                    focusManager.clearFocus()
+                    if (isFolded) model.unfold(task) else model.fold(task)
+                }
+                .pointerInput(Unit) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                        onDrag = { _, dragAmount ->
+                            dragOffsetY += dragAmount.y
+                            if (dragOffsetY > 100f) {
+                                model.moveGroupDownAsync(task)
+                                dragOffsetY = 0f
+                            } else if (dragOffsetY < -100f) {
+                                model.moveGroupUpAsync(task)
+                                dragOffsetY = 0f
+                            }
+                        },
+                    )
+                }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = displayName,
+                style = TextStyle(
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = chevron,
+                style = TextStyle(
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    fontSize = 14.sp,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun GroupTerminatorRow(task: TaskViewModel, modifier: Modifier = Modifier) {
+    val displayName = task.name.removePrefix("<<<").trim()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.End,
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 6.dp)
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+        Text(
+            text = displayName,
+            style = TextStyle(
+                color = MaterialTheme.colorScheme.outline,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Light,
+            ),
         )
     }
 }

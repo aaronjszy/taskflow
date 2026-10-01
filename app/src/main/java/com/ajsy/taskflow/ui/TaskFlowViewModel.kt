@@ -189,21 +189,46 @@ class TaskFlowViewModel(
         }
     }
 
-    private fun findGroupHeader(task: TaskViewModel): TaskViewModel? {
+    // Returns [directParent, grandparent, ..., outermost] for the task's enclosing groups.
+    private fun findAncestorChain(task: TaskViewModel): List<TaskViewModel> {
         val taskIndex = _tasks.indexOf(task)
-        if (taskIndex <= 0) return null
+        if (taskIndex <= 0) return emptyList()
+        val ancestors = mutableListOf<TaskViewModel>()
         var depth = 0
         for (i in taskIndex - 1 downTo 0) {
             val t = _tasks[i]
             when {
                 t.name.startsWith("<<<") -> depth++
                 t.name.startsWith(">>>") && !t.name.contains("[folded]") -> {
-                    if (depth == 0) return t
-                    depth--
+                    if (depth == 0) ancestors.add(t) else depth--
                 }
             }
         }
-        return null
+        return ancestors
+    }
+
+    private fun findGroupEnd(header: TaskViewModel): Int {
+        val start = _tasks.indexOf(header)
+        var depth = 0
+        for (i in start until _tasks.size) {
+            val t = _tasks[i]
+            if (i > start && t.name.startsWith(">>>") && !t.name.contains("[folded]")) depth++
+            if (t.name.startsWith("<<<")) {
+                if (depth == 0) return i
+                depth--
+            }
+        }
+        return _tasks.size - 1
+    }
+
+    private fun moveGroupBlockTo(header: TaskViewModel, targetIndex: Int) {
+        val headerIndex = _tasks.indexOf(header)
+        if (headerIndex == targetIndex) return
+        val closerIndex = findGroupEnd(header)
+        val block = _tasks.subList(headerIndex, closerIndex + 1).toList()
+        for (i in closerIndex downTo headerIndex) _tasks.removeAt(i)
+        block.forEachIndexed { i, t -> _tasks.add(targetIndex + i, t) }
+        _tasks.forEachIndexed { i, t -> t.position = i }
     }
 
     private fun startTimerForTaskAsync(task: TaskViewModel) {
@@ -214,18 +239,27 @@ class TaskFlowViewModel(
 
             _tasks.filter { it.taskTimerRunning && it.id != task.id }.forEach { it.stop() }
 
-            val groupHeader = findGroupHeader(task)
-            if (groupHeader != null) {
-                // Move the whole group to top, then float the target task to position 1
-                moveTaskToTop(groupHeader, noSync = true, noStopTimer = true)
-                val taskIndex = _tasks.indexOf(task)
-                if (taskIndex > 1) {
-                    _tasks.removeAt(taskIndex)
-                    _tasks.add(1, task)
-                    _tasks.forEachIndexed { index, t -> t.position = index }
-                }
-            } else {
+            val ancestors = findAncestorChain(task) // [direct parent, ..., outermost]
+            if (ancestors.isEmpty()) {
                 moveTaskToTop(task, noSync = true, noStopTimer = true)
+            } else {
+                // Move outermost group to top of the list
+                moveGroupBlockTo(ancestors.last(), 0)
+                // For each level inward, move the group block to position 1 within its parent
+                for (i in ancestors.indices.reversed()) {
+                    val header = ancestors[i]
+                    val parentIndex = if (i < ancestors.size - 1) _tasks.indexOf(ancestors[i + 1]) else -1
+                    val targetPos = if (parentIndex >= 0) parentIndex + 1 else 0
+                    moveGroupBlockTo(header, targetPos)
+                }
+                // Move the target task to position 1 within its direct parent
+                val directParentIndex = _tasks.indexOf(ancestors.first())
+                val taskIndex = _tasks.indexOf(task)
+                if (taskIndex != directParentIndex + 1) {
+                    _tasks.removeAt(taskIndex)
+                    _tasks.add(directParentIndex + 1, task)
+                    _tasks.forEachIndexed { i, t -> t.position = i }
+                }
             }
 
             updateTaskPositions()
@@ -337,9 +371,17 @@ class TaskFlowViewModel(
                     cursor.position.coerceIn(0, _tasks.size)
                 }
                 _tasks.add(insertIndex, task)
-                _tasks.forEachIndexed { index, t -> t.position = index }
-                cursor.position = insertIndex + 1
                 taskRepository.upsertTask(task)
+                if (cleanName.startsWith(">>>")) {
+                    val terminatorName = cleanName.replaceFirst(">>>", "<<<")
+                    val terminator = TaskViewModel(terminatorName, "1", taskRepository, viewModelScope)
+                    _tasks.add(insertIndex + 1, terminator)
+                    taskRepository.upsertTask(terminator)
+                    cursor.position = insertIndex + 1
+                } else {
+                    cursor.position = insertIndex + 1
+                }
+                _tasks.forEachIndexed { index, t -> t.position = index }
             }
             updateTaskPositions()
         }
@@ -467,6 +509,54 @@ class TaskFlowViewModel(
             resetTaskTimer(task)
             if (wasTimerRunning && _tasks.isNotEmpty()) {
                 startTimerForTaskAsync(_tasks[0])
+            }
+            updateTaskPositions()
+        }
+    }
+
+    fun deleteGroupAsync(header: TaskViewModel) {
+        viewModelScope.launch {
+            taskListMutex.withLock {
+                val headerIndex = _tasks.indexOf(header)
+                val closerIndex = findGroupEnd(header)
+                val block = _tasks.subList(headerIndex, closerIndex + 1).toList()
+                for (i in closerIndex downTo headerIndex) _tasks.removeAt(i)
+                block.forEach { task ->
+                    task.cleanup()
+                    taskRepository.deleteTask(task)
+                }
+                _tasks.forEachIndexed { i, t -> t.position = i }
+            }
+            updateTaskPositions()
+        }
+    }
+
+    fun moveGroupUpAsync(header: TaskViewModel) {
+        viewModelScope.launch {
+            taskListMutex.withLock {
+                val headerIndex = _tasks.indexOf(header)
+                if (headerIndex <= 0) return@withLock
+                val closerIndex = findGroupEnd(header)
+                val block = _tasks.subList(headerIndex, closerIndex + 1).toList()
+                for (i in closerIndex downTo headerIndex) _tasks.removeAt(i)
+                val newIndex = (headerIndex - 1).coerceAtLeast(0)
+                block.forEachIndexed { i, t -> _tasks.add(newIndex + i, t) }
+                _tasks.forEachIndexed { i, t -> t.position = i }
+            }
+            updateTaskPositions()
+        }
+    }
+
+    fun moveGroupDownAsync(header: TaskViewModel) {
+        viewModelScope.launch {
+            taskListMutex.withLock {
+                val headerIndex = _tasks.indexOf(header)
+                val closerIndex = findGroupEnd(header)
+                if (closerIndex >= _tasks.size - 1) return@withLock
+                val block = _tasks.subList(headerIndex, closerIndex + 1).toList()
+                for (i in closerIndex downTo headerIndex) _tasks.removeAt(i)
+                block.forEachIndexed { i, t -> _tasks.add(headerIndex + 1 + i, t) }
+                _tasks.forEachIndexed { i, t -> t.position = i }
             }
             updateTaskPositions()
         }

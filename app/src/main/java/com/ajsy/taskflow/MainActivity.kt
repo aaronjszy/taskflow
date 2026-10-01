@@ -135,12 +135,14 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                         TaskRow(model = model, task = task, listState = listState,
                             modifier = Modifier.padding(start = indent))
                     }
-                    item(key = task.id + "time") {
-                        Row(modifier = Modifier.padding(start = indent)) {
-                            Text(
-                                text = timeFormatter.format(model.calcTimeRange(task).endTime),
-                                fontSize = 12.sp,
-                            )
+                    if (!task.name.startsWith(">>>") && !task.name.startsWith("<<<")) {
+                        item(key = task.id + "time") {
+                            Row(modifier = Modifier.padding(start = indent)) {
+                                Text(
+                                    text = timeFormatter.format(model.calcTimeRange(task).endTime),
+                                    fontSize = 12.sp,
+                                )
+                            }
                         }
                     }
                 }
@@ -153,12 +155,14 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                         TaskRow(model = model, task = task, listState = listState,
                             modifier = Modifier.padding(start = indent))
                     }
-                    item(key = task.id + "time") {
-                        Row(modifier = Modifier.padding(start = indent)) {
-                            Text(
-                                text = timeFormatter.format(model.calcTimeRange(task).endTime),
-                                fontSize = 12.sp,
-                            )
+                    if (!task.name.startsWith(">>>") && !task.name.startsWith("<<<")) {
+                        item(key = task.id + "time") {
+                            Row(modifier = Modifier.padding(start = indent)) {
+                                Text(
+                                    text = timeFormatter.format(model.calcTimeRange(task).endTime),
+                                    fontSize = 12.sp,
+                                )
+                            }
                         }
                     }
                 }
