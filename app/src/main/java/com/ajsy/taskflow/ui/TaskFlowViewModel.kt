@@ -8,6 +8,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ajsy.taskflow.db.SavedTaskList
+import com.ajsy.taskflow.db.Task
 import com.ajsy.taskflow.db.TaskRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -731,7 +732,19 @@ class TaskFlowViewModel(
     fun saveCurrentList(name: String) {
         viewModelScope.launch {
             taskListMutex.withLock {
-                val tasks = TaskRepository.viewModelListToDtoList(_tasks.toList())
+                val tasks = _tasks.map { task ->
+                    Task(
+                        id = task.id,
+                        position = task.position,
+                        name = task.getDisplayName(),
+                        durationStr = task.durationStr,
+                        originalDuration = task.originalDuration,
+                        remainingDurationAtResume = task.remainingDurationAtResume,
+                        lastResumedTime = 0L,
+                        taskTimerRunning = false,
+                        fixedStartTime = null
+                    )
+                }
                 taskRepository.saveNewList(name, tasks)
                 loadSavedLists()
             }
@@ -753,9 +766,10 @@ class TaskFlowViewModel(
                 _tasks.forEach { it.cleanup() }
                 _tasks.clear()
                 savedTasks.sortedBy { it.position }.forEach { savedTask ->
-                    val task = TaskViewModel(savedTask.name, savedTask.durationStr, taskRepository, viewModelScope)
+                    val (cleanName, fixedStartTime) = processTimePrefix(savedTask.name)
+                    val task = TaskViewModel(cleanName, savedTask.durationStr, taskRepository, viewModelScope)
                     task.position = _tasks.size
-                    task.fixedStartTime = savedTask.fixedStartTime
+                    task.fixedStartTime = fixedStartTime ?: savedTask.fixedStartTime
                     _tasks.add(task)
                 }
                 _tasks.forEachIndexed { index, t -> t.position = index }
@@ -773,9 +787,10 @@ class TaskFlowViewModel(
             taskListMutex.withLock {
                 val savedTasks = taskRepository.getTasksFromSavedList(listId)
                 savedTasks.sortedBy { it.position }.forEach { savedTask ->
-                    val task = TaskViewModel(savedTask.name, savedTask.durationStr, taskRepository, viewModelScope)
+                    val (cleanName, fixedStartTime) = processTimePrefix(savedTask.name)
+                    val task = TaskViewModel(cleanName, savedTask.durationStr, taskRepository, viewModelScope)
                     task.position = _tasks.size
-                    task.fixedStartTime = savedTask.fixedStartTime
+                    task.fixedStartTime = fixedStartTime ?: savedTask.fixedStartTime
                     _tasks.add(task)
                 }
                 _tasks.forEachIndexed { index, t -> t.position = index }
@@ -797,7 +812,19 @@ class TaskFlowViewModel(
     fun updateSavedList(listId: Int, name: String) {
         viewModelScope.launch {
             taskListMutex.withLock {
-                val tasks = TaskRepository.viewModelListToDtoList(_tasks.toList())
+                val tasks = _tasks.map { task ->
+                    Task(
+                        id = task.id,
+                        position = task.position,
+                        name = task.getDisplayName(),
+                        durationStr = task.durationStr,
+                        originalDuration = task.originalDuration,
+                        remainingDurationAtResume = task.remainingDurationAtResume,
+                        lastResumedTime = 0L,
+                        taskTimerRunning = false,
+                        fixedStartTime = null
+                    )
+                }
                 taskRepository.updateSavedList(listId, name, tasks)
                 loadSavedLists()
             }
@@ -842,7 +869,7 @@ class TaskFlowViewModel(
         if (_tasks.isEmpty()) return ""
         return _tasks.joinToString("\n") { task ->
             val minutes = (task.originalDuration / 60000L).toInt()
-            "${task.name} $minutes"
+            "${task.getDisplayName()} $minutes"
         }
     }
 
@@ -859,7 +886,20 @@ class TaskFlowViewModel(
                 builder.append("=== ").append(list.name).append(" ===")
                 val tasks = taskRepository.getTasksFromSavedList(list.id).sortedBy { it.position }
                 tasks.forEach { task ->
-                    builder.append("\n").append(task.name)
+                    val (cleanName, fixedStartTime) = processTimePrefix(task.name)
+                    val effectiveFixedStartTime = fixedStartTime ?: task.fixedStartTime
+                    val taskNameWithTimePrefix = if (effectiveFixedStartTime != null && !task.name.matches(Regex("^\\d+.*"))) {
+                        val scheduledDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(effectiveFixedStartTime), ZoneId.systemDefault())
+                        val hour = scheduledDateTime.hour
+                        val minute = scheduledDateTime.minute
+                        val amPm = if (hour >= 12) "p" else "a"
+                        val hour12 = if (hour % 12 != 0) hour % 12 else 12
+                        val formattedTime = "$hour12:${String.format("%02d", minute)}$amPm"
+                        "$formattedTime $cleanName"
+                    } else {
+                        task.name
+                    }
+                    builder.append("\n").append(taskNameWithTimePrefix)
                     if (task.durationStr.isNotEmpty()) {
                         builder.append(" ").append(task.durationStr)
                     }
