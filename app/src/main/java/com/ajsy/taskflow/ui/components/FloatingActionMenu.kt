@@ -45,8 +45,10 @@ fun FloatingActionMenu(
                 .align(Alignment.BottomEnd)
                 .padding(end = 16.dp, bottom = 80.dp),
         ) {
+            val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
             FloatingActionButton(
                 onClick = {
+                    focusManager.clearFocus()
                     onUiStateChange(uiState.updateShowMenu(true))
                     model.loadSavedLists()
                 },

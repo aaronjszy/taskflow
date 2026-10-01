@@ -116,6 +116,7 @@ fun TaskRow(
     listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     var showMenu by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
 
@@ -184,6 +185,7 @@ fun TaskRow(
 
     val defer = SwipeAction(
         onSwipe = {
+            focusManager.clearFocus()
             val wasTopTask = task.position == 0
             model.deferTaskAsync(task)
             if (wasTopTask) {
@@ -197,13 +199,14 @@ fun TaskRow(
     )
 
     val delete = SwipeAction(
-        onSwipe = { model.deleteTaskAsync(task) },
+        onSwipe = { focusManager.clearFocus(); model.deleteTaskAsync(task) },
         icon = rememberVectorPainter(Icons.TwoTone.Delete),
         background = Color.Red,
     )
 
     val playPause = SwipeAction(
         onSwipe = {
+            focusManager.clearFocus()
             model.toggleTimer(task)
             model.viewModelScope.launch {
                 delay(50.milliseconds)
@@ -250,7 +253,10 @@ fun TaskRow(
             }
             .border(borderWidth, borderColor, RoundedCornerShape(10))
             .padding(5.dp)
-            .clickable { showMenu = true }
+            .clickable {
+                focusManager.clearFocus()
+                showMenu = true
+            }
             .pointerInput(Unit) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = {
