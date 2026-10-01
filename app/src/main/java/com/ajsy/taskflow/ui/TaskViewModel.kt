@@ -30,7 +30,7 @@ class TaskViewModel(
     var taskTimerRunning: Boolean by mutableStateOf(false)
     var hasTimedOut: Boolean by mutableStateOf(false)
     var fixedStartTime: Long? by mutableStateOf(null)
-    var bufferSeconds: Long = 0L
+    var bufferSeconds: Long by mutableStateOf(0L)
 
     // Snapshot of remaining time at last resume/pause — persisted to DB
     var remainingDurationAtResume: Long = stringMinutesToLongMillis(durationStr)
