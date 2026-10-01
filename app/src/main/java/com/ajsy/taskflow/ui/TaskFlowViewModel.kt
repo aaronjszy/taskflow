@@ -498,7 +498,7 @@ class TaskFlowViewModel(
                 headerTask.originalDuration += task.originalDuration
                 headerTask.updateTimerDisplayTime(headerTask.originalDuration)
                 tasksInGroup.add(task)
-                if (task.name.startsWith(">>>")) {
+                if (task.name.startsWith(">>>") && !task.name.contains("[folded]")) {
                     depth++
                 } else if (task.name.startsWith("<<<")) {
                     depth--

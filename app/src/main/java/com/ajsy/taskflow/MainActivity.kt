@@ -108,18 +108,35 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                 .padding(horizontal = 10.dp, vertical = 10.dp)
         ) {
             val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.weight(1f)
             ) {
+                // Computed inside the content lambda so taskDepths and model.tasks reads
+                // are always from the same snapshot, preventing index-out-of-bounds crashes.
+                var depthCounter = 0
+                val taskDepths = model.tasks.map { task ->
+                    val depth = if (task.name.startsWith("<<<")) {
+                        depthCounter = (depthCounter - 1).coerceAtLeast(0)
+                        depthCounter
+                    } else {
+                        depthCounter
+                    }
+                    if (task.name.startsWith(">>>") && !task.name.contains("[folded]")) depthCounter++
+                    depth
+                }
+
                 val cursorPos = model.cursor.position.coerceIn(0, model.tasks.size)
-                model.tasks.take(cursorPos).forEach { task ->
+                model.tasks.take(cursorPos).forEachIndexed { index, task ->
+                    val indent = (taskDepths[index] * 12).dp
                     item(key = task.id) {
-                        TaskRow(model = model, task = task, listState = listState)
+                        TaskRow(model = model, task = task, listState = listState,
+                            modifier = Modifier.padding(start = indent))
                     }
                     item(key = task.id + "time") {
-                        Row {
+                        Row(modifier = Modifier.padding(start = indent)) {
                             Text(
                                 text = timeFormatter.format(model.calcTimeRange(task).endTime),
                                 fontSize = 12.sp,
@@ -130,12 +147,14 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                 item(key = "cursor") {
                     CursorRow(model = model)
                 }
-                model.tasks.drop(cursorPos).forEach { task ->
+                model.tasks.drop(cursorPos).forEachIndexed { index, task ->
+                    val indent = (taskDepths[cursorPos + index] * 12).dp
                     item(key = task.id) {
-                        TaskRow(model = model, task = task, listState = listState)
+                        TaskRow(model = model, task = task, listState = listState,
+                            modifier = Modifier.padding(start = indent))
                     }
                     item(key = task.id + "time") {
-                        Row {
+                        Row(modifier = Modifier.padding(start = indent)) {
                             Text(
                                 text = timeFormatter.format(model.calcTimeRange(task).endTime),
                                 fontSize = 12.sp,
