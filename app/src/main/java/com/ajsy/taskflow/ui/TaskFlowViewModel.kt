@@ -189,17 +189,45 @@ class TaskFlowViewModel(
         }
     }
 
+    private fun findGroupHeader(task: TaskViewModel): TaskViewModel? {
+        val taskIndex = _tasks.indexOf(task)
+        if (taskIndex <= 0) return null
+        var depth = 0
+        for (i in taskIndex - 1 downTo 0) {
+            val t = _tasks[i]
+            when {
+                t.name.startsWith("<<<") -> depth++
+                t.name.startsWith(">>>") && !t.name.contains("[folded]") -> {
+                    if (depth == 0) return t
+                    depth--
+                }
+            }
+        }
+        return null
+    }
+
     private fun startTimerForTaskAsync(task: TaskViewModel) {
         viewModelScope.launch {
             val cursorAtBottom = cursor.position == _tasks.size
             val cursorTask = _tasks.getOrNull(cursor.position)
             val cursorBeforeTask = _tasks.indexOf(task) >= cursor.position
 
-            // Stop any currently running timers before starting the new one
             _tasks.filter { it.taskTimerRunning && it.id != task.id }.forEach { it.stop() }
 
-            moveTaskToTop(task, noSync = true, noStopTimer = true)
-            // Calculate bufferSeconds before starting so the timer display includes buffer
+            val groupHeader = findGroupHeader(task)
+            if (groupHeader != null) {
+                // Move the whole group to top, then float the target task to position 1
+                moveTaskToTop(groupHeader, noSync = true, noStopTimer = true)
+                val taskIndex = _tasks.indexOf(task)
+                if (taskIndex > 1) {
+                    _tasks.removeAt(taskIndex)
+                    _tasks.add(1, task)
+                    _tasks.forEachIndexed { index, t -> t.position = index }
+                }
+            } else {
+                moveTaskToTop(task, noSync = true, noStopTimer = true)
+            }
+
             updateTaskPositions()
             task.start()
 
