@@ -209,6 +209,7 @@ class TaskFlowViewModel(
 
     private fun findGroupEnd(header: TaskViewModel): Int {
         val start = _tasks.indexOf(header)
+        if (header.name.contains("[folded]")) return start  // folded group is a single task
         var depth = 0
         for (i in start until _tasks.size) {
             val t = _tasks[i]
