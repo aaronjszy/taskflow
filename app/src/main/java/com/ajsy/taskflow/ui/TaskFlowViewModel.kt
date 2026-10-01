@@ -327,6 +327,11 @@ class TaskFlowViewModel(
         _newItemTime.value = ""
     }
 
+    fun addGroupAsync(name: String = "Group") {
+        addSingleItemAsync(">>> $name", "1")
+        _newItemName.value = ""
+    }
+
     fun addItem() {
         val editing = _editingTask.value
         if (editing != null) {

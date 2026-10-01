@@ -3,13 +3,17 @@ package com.ajsy.taskflow.ui.components
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -61,67 +65,93 @@ fun NewTaskRow(
         }
     }
 
-    androidx.compose.foundation.layout.Row(
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        TextField(
-            value = newItemName,
-            onValueChange = { model.updateNewItemName(it) },
-            label = { Text("task", maxLines = 1, fontSize = 14.sp) },
-            singleLine = true,
-            modifier = Modifier
-                .weight(0.70f)
-                .focusRequester(focusRequester),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            keyboardActions = KeyboardActions(
-                onDone = {
-                    model.addItem()
-                    if (addItemMode == "push") {
-                        model.viewModelScope.launch { listState.scrollToItem(0) }
-                    }
-                    focusRequester.requestFocus()
+    Column(modifier = modifier.fillMaxWidth()) {
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+            OutlinedButton(
+                onClick = {
+                    model.updateNewItemName("")
+                    model.updateNewItemTime("")
+                    focusManager.clearFocus()
                 },
-            ),
-        )
-        TextField(
-            value = newItemTime,
-            onValueChange = { model.updateNewItemTime(it) },
-            label = {
-                Text(
-                    "minutes",
-                    maxLines = 1,
-                    fontSize = 14.sp,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-            },
-            singleLine = true,
-            modifier = Modifier.weight(0.25f),
-            keyboardOptions = KeyboardOptions.Default.copy(
-                keyboardType = KeyboardType.Number,
-                imeAction = ImeAction.Done,
-            ),
-            keyboardActions = KeyboardActions(
-                onDone = {
-                    model.addItem()
-                    if (addItemMode == "push") {
-                        model.viewModelScope.launch { listState.scrollToItem(0) }
-                    }
-                    focusRequester.requestFocus()
-                },
-            ),
-        )
-        val cursorIcon = when (cursorPositionState) {
-            model.CURSOR_TOP -> "⬆"
-            model.CURSOR_BOTTOM -> "⬇"
-            else -> "↕" // CURSOR_CUSTOM
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                modifier = Modifier.height(28.dp),
+            ) {
+                Text("✕", fontSize = 11.sp)
+            }
+            OutlinedButton(
+                onClick = { model.addGroupAsync(newItemName.ifBlank { "Group" }) },
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                modifier = Modifier.height(28.dp),
+            ) {
+                Text("▶▶ Group", fontSize = 11.sp)
+            }
         }
-        Text(
-            text = cursorIcon,
-            modifier = Modifier
-                .weight(0.05f)
-                .align(Alignment.CenterVertically)
-                .clickable { model.toggleCursorPosition() },
-        )
+
+        androidx.compose.foundation.layout.Row(modifier = Modifier.fillMaxWidth()) {
+            TextField(
+                value = newItemName,
+                onValueChange = { model.updateNewItemName(it) },
+                label = { Text("task", maxLines = 1, fontSize = 14.sp) },
+                singleLine = true,
+                modifier = Modifier
+                    .weight(0.70f)
+                    .focusRequester(focusRequester),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        model.addItem()
+                        if (addItemMode == "push") {
+                            model.viewModelScope.launch { listState.scrollToItem(0) }
+                        }
+                        focusRequester.requestFocus()
+                    },
+                ),
+            )
+            TextField(
+                value = newItemTime,
+                onValueChange = { model.updateNewItemTime(it) },
+                label = {
+                    Text(
+                        "minutes",
+                        maxLines = 1,
+                        fontSize = 14.sp,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier.weight(0.25f),
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        model.addItem()
+                        if (addItemMode == "push") {
+                            model.viewModelScope.launch { listState.scrollToItem(0) }
+                        }
+                        focusRequester.requestFocus()
+                    },
+                ),
+            )
+            val cursorIcon = when (cursorPositionState) {
+                model.CURSOR_TOP -> "⬆"
+                model.CURSOR_BOTTOM -> "⬇"
+                else -> "↕" // CURSOR_CUSTOM
+            }
+            Text(
+                text = cursorIcon,
+                modifier = Modifier
+                    .weight(0.05f)
+                    .align(Alignment.CenterVertically)
+                    .clickable { model.toggleCursorPosition() },
+            )
+        }
+
     }
 }
 

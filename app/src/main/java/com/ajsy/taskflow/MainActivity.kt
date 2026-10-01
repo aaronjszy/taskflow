@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -91,6 +92,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TaskFlowScreen(model: TaskFlowViewModel) {
     val listState = rememberLazyListState()
@@ -133,11 +135,11 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                     val indent = (taskDepths[index] * 12).dp
                     item(key = task.id) {
                         TaskRow(model = model, task = task, listState = listState,
-                            modifier = Modifier.padding(start = indent))
+                            modifier = Modifier.animateItemPlacement().padding(start = indent))
                     }
                     if (!task.name.startsWith(">>>") && !task.name.startsWith("<<<")) {
                         item(key = task.id + "time") {
-                            Row(modifier = Modifier.padding(start = indent)) {
+                            Row(modifier = Modifier.animateItemPlacement().padding(start = indent)) {
                                 Text(
                                     text = timeFormatter.format(model.calcTimeRange(task).endTime),
                                     fontSize = 12.sp,
@@ -153,11 +155,11 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                     val indent = (taskDepths[cursorPos + index] * 12).dp
                     item(key = task.id) {
                         TaskRow(model = model, task = task, listState = listState,
-                            modifier = Modifier.padding(start = indent))
+                            modifier = Modifier.animateItemPlacement().padding(start = indent))
                     }
                     if (!task.name.startsWith(">>>") && !task.name.startsWith("<<<")) {
                         item(key = task.id + "time") {
-                            Row(modifier = Modifier.padding(start = indent)) {
+                            Row(modifier = Modifier.animateItemPlacement().padding(start = indent)) {
                                 Text(
                                     text = timeFormatter.format(model.calcTimeRange(task).endTime),
                                     fontSize = 12.sp,
