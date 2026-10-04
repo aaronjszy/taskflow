@@ -309,7 +309,7 @@ fun TaskRow(
                                 Text(
                                     text = task.getDisplayName(),
                                     style = textStyle,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    textAlign = TextAlign.Center,
                                 )
                                 TimeDisplay(
                                     timeStr = task.formatTimeRemaining(),
