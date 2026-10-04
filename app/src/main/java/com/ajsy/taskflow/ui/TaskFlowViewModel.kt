@@ -371,11 +371,7 @@ class TaskFlowViewModel(
             val task = TaskViewModel(cleanName, duration, taskRepository, viewModelScope)
             task.fixedStartTime = fixedStartTime
             taskListMutex.withLock {
-                val insertIndex = if (_addItemMode.value == "below_cursor") {
-                    (cursor.position + 1).coerceAtMost(_tasks.size)
-                } else {
-                    cursor.position.coerceIn(0, _tasks.size)
-                }
+                val insertIndex = cursor.position.coerceIn(0, _tasks.size)
                 _tasks.add(insertIndex, task)
                 taskRepository.upsertTask(task)
                 if (cleanName.startsWith(">>>")) {
@@ -385,7 +381,11 @@ class TaskFlowViewModel(
                     taskRepository.upsertTask(terminator)
                     cursor.position = insertIndex + 1
                 } else {
-                    cursor.position = insertIndex + 1
+                    if (_addItemMode.value == "above_cursor") {
+                        cursor.position = insertIndex + 1
+                    } else {
+                        cursor.position = insertIndex
+                    }
                 }
                 _tasks.forEachIndexed { index, t -> t.position = index }
             }

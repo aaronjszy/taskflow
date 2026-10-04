@@ -131,7 +131,12 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                 }
 
                 val cursorPos = model.cursor.position.coerceIn(0, model.tasks.size)
-                model.tasks.take(cursorPos).forEachIndexed { index, task ->
+                model.tasks.forEachIndexed { index, task ->
+                    if (index == cursorPos) {
+                        item(key = "cursor") {
+                            CursorRow(model = model, modifier = Modifier.animateItemPlacement())
+                        }
+                    }
                     val indent = (taskDepths[index] * 12).dp
                     item(key = task.id) {
                         TaskRow(model = model, task = task, listState = listState,
@@ -148,24 +153,9 @@ fun TaskFlowScreen(model: TaskFlowViewModel) {
                         }
                     }
                 }
-                item(key = "cursor") {
-                    CursorRow(model = model)
-                }
-                model.tasks.drop(cursorPos).forEachIndexed { index, task ->
-                    val indent = (taskDepths[cursorPos + index] * 12).dp
-                    item(key = task.id) {
-                        TaskRow(model = model, task = task, listState = listState,
-                            modifier = Modifier.animateItemPlacement().padding(start = indent))
-                    }
-                    if (!task.name.startsWith(">>>") && !task.name.startsWith("<<<")) {
-                        item(key = task.id + "time") {
-                            Row(modifier = Modifier.animateItemPlacement().padding(start = indent)) {
-                                Text(
-                                    text = timeFormatter.format(model.calcTimeRange(task).endTime),
-                                    fontSize = 12.sp,
-                                )
-                            }
-                        }
+                if (cursorPos >= model.tasks.size) {
+                    item(key = "cursor") {
+                        CursorRow(model = model, modifier = Modifier.animateItemPlacement())
                     }
                 }
             }
